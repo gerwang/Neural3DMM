@@ -11,6 +11,7 @@ parser.add_argument('-d','--dataset', type=str,
             help='Dataset name, Default is DFAUST')
 parser.add_argument('-v','--num_valid', type=int, default=100, 
             help='Number of meshes in validation set, default 100')
+parser.add_argument('-n','--name', type=str, help='Dataset name')
 
 args = parser.parse_args()
 
@@ -18,7 +19,7 @@ args = parser.parse_args()
 nVal = args.num_valid
 root_dir = args.root_dir
 dataset = args.dataset
-name = ''
+name = args.name
 
 data = os.path.join(root_dir, dataset, 'preprocessed',name)
 train = np.load(data+'/train.npy')
