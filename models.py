@@ -133,6 +133,8 @@ class SpiralAutoencoder(nn.Module):
         # self.dconv_template = 'dconv_%d'
         # for i in range(len(self.dconv)):
         #     self.add_module(self.dconv_template % i, self.dconv[i])
+        self.only_decode = False
+        self.only_encode = False
 
     def encode(self,x):
         bsize = x.size(0)
@@ -171,8 +173,140 @@ class SpiralAutoencoder(nn.Module):
         return x
         
     def forward(self,x):
-        bsize = x.size(0)
+        if self.only_encode:
+            z = self.encode(x)
+            return z
+        if self.only_decode:
+            z = x
+            x = self.decode(z)
+            return x
         z = self.encode(x)
         x = self.decode(z)
         return x   
+
+class SpiralAutoencoderVariationalLoss(nn.Module):
+    def __init__(self, filters_enc, filters_dec, latent_size, sizes, spiral_sizes, spirals, D, U, activation = 'elu'):
+        super(SpiralAutoencoder,self).__init__()
+        self.latent_size = latent_size
+        self.sizes = sizes
+
+        self.spirals = spirals
+        self.spiral_template = 'spirals_%d' 
+        for i in range(len(self.spirals)):
+            self.register_buffer(self.spiral_template % i, self.spirals[i])
+
+        self.filters_enc = filters_enc
+        self.filters_dec = filters_dec
+        self.spiral_sizes = spiral_sizes
+
+        self.D = D
+        self.D_template = 'D_%d'
+        for i in range(len(self.D)):
+            self.register_buffer(self.D_template % i, self.D[i])
+        self.U = U
+        self.U_template = 'U_%d'
+        for i in range(len(self.U)):
+            self.register_buffer(self.U_template % i, self.U[i])
+
+        self.activation = activation
+        
+        conv = []
+        input_size = filters_enc[0][0]
+        for i in range(len(spiral_sizes)-1):
+            if filters_enc[1][i]:
+                conv.append(SpiralConv(input_size, spiral_sizes[i], filters_enc[1][i],
+                                            activation=self.activation))
+                input_size = filters_enc[1][i]
+
+            conv.append(SpiralConv(input_size, spiral_sizes[i], filters_enc[0][i+1],
+                                        activation=self.activation))
+            input_size = filters_enc[0][i+1]
+
+        self.conv = nn.ModuleList(conv)
+        # self.conv_template = 'conv_%d' 
+        # for i in range(len(self.conv)):
+        #     self.add_module(self.conv_template % i, self.conv[i])
+        
+        self.fc_latent_enc_mu = nn.Linear((sizes[-1]+1)*input_size, latent_size)
+        self.fc_latent_enc_logvar = nn.Linear((sizes[-1]+1)*input_size, latent_size)
+        self.fc_latent_dec = nn.Linear(latent_size, (sizes[-1]+1)*filters_dec[0][0])
+        
+        dconv = []
+        input_size = filters_dec[0][0]
+        for i in range(len(spiral_sizes)-1):
+            if i != len(spiral_sizes)-2:
+                dconv.append(SpiralConv(input_size, spiral_sizes[-2-i], filters_dec[0][i+1],
+                                                activation=self.activation))
+                input_size = filters_dec[0][i+1]  
+                
+                if filters_dec[1][i+1]:
+                    dconv.append(SpiralConv(input_size,spiral_sizes[-2-i], filters_dec[1][i+1],
+                                                    activation=self.activation))
+                    input_size = filters_dec[1][i+1]
+            else:
+                if filters_dec[1][i+1]:
+                    dconv.append(SpiralConv(input_size, spiral_sizes[-2-i], filters_dec[0][i+1],
+                                                    activation=self.activation))
+                    input_size = filters_dec[0][i+1]                      
+                    dconv.append(SpiralConv(input_size,spiral_sizes[-2-i], filters_dec[1][i+1],
+                                                    activation='identity')) 
+                    input_size = filters_dec[1][i+1] 
+                else:
+                    dconv.append(SpiralConv(input_size, spiral_sizes[-2-i], filters_dec[0][i+1],
+                                                    activation='identity'))
+                    input_size = filters_dec[0][i+1]                      
+                    
+        self.dconv = nn.ModuleList(dconv)
+        # self.dconv_template = 'dconv_%d'
+        # for i in range(len(self.dconv)):
+        #     self.add_module(self.dconv_template % i, self.dconv[i])
+
+    def encode(self,x):
+        bsize = x.size(0)
+        S = FakeArray(self, len(self.spirals), self.spiral_template)
+        D = FakeArray(self, len(self.D), self.D_template)
+        conv = self.conv
+
+        j = 0
+        for i in range(len(self.spiral_sizes)-1):
+            # print(x.device, S[i].repeat(bsize,1,1).device, conv[j].conv.weight.device)
+            x = conv[j](x,S[i].repeat(bsize,1,1))
+            j+=1
+            if self.filters_enc[1][i]:
+                x = conv[j](x,S[i].repeat(bsize,1,1))
+                j+=1
+            x = torch.matmul(D[i],x)
+        x = x.view(bsize,-1)
+        return self.fc_latent_enc_mu(x), self.fc_latent_enc_logvar(x)
+    
+    def decode(self,z):
+        bsize = z.size(0)
+        S = FakeArray(self, len(self.spirals), self.spiral_template)
+        U = FakeArray(self, len(self.U), self.U_template)
+        dconv = self.dconv
+        
+        x = self.fc_latent_dec(z)
+        x = x.view(bsize,self.sizes[-1]+1,-1)
+        j=0
+        for i in range(len(self.spiral_sizes)-1):
+            x = torch.matmul(U[-1-i],x)
+            x = dconv[j](x,S[-2-i].repeat(bsize,1,1))
+            j+=1
+            if self.filters_dec[1][i+1]: 
+                x = dconv[j](x,S[-2-i].repeat(bsize,1,1))
+                j+=1
+        return x
+
+    def reparameterize(self, mu, logvar):
+        std = torch.exp(0.5*logvar)
+        eps = torch.randn_like(std)
+        return mu+eps*std
+    
+    def forward(self,x):
+        bsize = x.size(0)
+        mu, logvar = self.encode(x)
+        z = self.reparameterize(mu, logvar)
+        x = self.decode(z)
+        return x, mu, logvar
+
 

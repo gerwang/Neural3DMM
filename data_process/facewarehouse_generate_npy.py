@@ -10,7 +10,7 @@ n_vert = 0
 n_face = 0
 n_people = 150
 path_prefix = '/home/jingwang/Data/data/FaceWarehouse/'
-result_path = '/home/jingwang/Data/data/FaceWarehouse/preprocessed'
+result_path = '/home/jingwang/Data/data/FaceWarehouse/preprocessed/align_pose'
 n_training_pose = 20
 
 n_test = 10
@@ -30,7 +30,7 @@ def load_bs_file(bs_path):
 def load_training_pose(idx):
     ten = []
     template = os.path.join(path_prefix, 'Tester_{}'.format(
-        idx), 'TrainingPose', 'pose_{}.obj')
+        idx), 'TrainingPose', 'pose_aligned_{}.obj')
     for i in range(n_training_pose):
         file_path = template.format(i)
         mesh = openmesh.read_trimesh(file_path)
@@ -53,17 +53,17 @@ if __name__ == '__main__':
     id_test = list(range(1, n_test+1))
     id_train = list(range(n_test+1, n_people+1))
     for i in range(1, n_people + 1):
-        train_pose = load_training_pose(i)
+        # train_pose = load_training_pose(i)
         blendshape = load_personalized_blendshape(i)
         if i in id_test:
-            ten_test.append(train_pose)
+            # ten_test.append(train_pose)
             ten_test.append(blendshape)
         else:
-            ten_train.append(train_pose)
+            # ten_train.append(train_pose)
             ten_train.append(blendshape)
         print('done {}'.format(i))
     ten_test = np.concatenate(ten_test, axis=0)
     ten_train = np.concatenate(ten_train, axis=0)
     print(ten_test.shape, ten_train.shape)
-    np.save(os.path.join(result_path, 'train.npy'), ten_train)
-    np.save(os.path.join(result_path, 'test.npy'), ten_test)
+    np.save(os.path.join(result_path, 'train_bs_only.npy'), ten_train)
+    np.save(os.path.join(result_path, 'test_bs_only.npy'), ten_test)
