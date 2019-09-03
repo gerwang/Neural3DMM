@@ -40,6 +40,46 @@ class autoencoder_dataset(Dataset):
 
         return sample
 
+class cached_autoencoder_dataset(Dataset):
+
+    def __init__(self, root_dir, points_dataset, shapedata, device, normalization = True, dummy_node = True):
+        
+        self.shapedata = shapedata
+        self.normalization = normalization
+        self.root_dir = root_dir
+        self.points_dataset = points_dataset
+        self.dummy_node = dummy_node
+        self.paths = np.load(os.path.join(root_dir, 'paths_'+points_dataset+'.npy'))
+        self.device = device
+        self.cache = {}
+
+    def __len__(self):
+        return len(self.paths)
+
+    def __getitem__(self, idx):
+        if idx in self.cache:
+            return self.cache[idx]
+        basename = str(self.paths[idx])
+        
+        verts_init = np.load(os.path.join(self.root_dir,'points'+'_'+self.points_dataset, basename+'.npy'))
+        if self.normalization:
+            verts_init = verts_init - self.shapedata.mean
+            verts_init = verts_init/self.shapedata.std
+        verts_init[np.where(np.isnan(verts_init))]=0.0
+        
+        verts_init = verts_init.astype('float32')
+        if self.dummy_node:
+            verts = np.zeros((verts_init.shape[0]+1,verts_init.shape[1]),dtype=np.float32)
+            verts[:-1,:] = verts_init
+            verts_init = verts
+        verts = torch.Tensor(verts_init).to(self.device)
+        
+
+        sample = {'points': verts}
+        
+        self.cache[idx] = sample
+        return sample
+
 def getRowCol(idx, n):
     neg_b = 2*n-1
     four_ac = 8*(idx+1)
