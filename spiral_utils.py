@@ -7,6 +7,14 @@ from random import choice
 ## choose two triangles in order to continue the inductive assignment of the order to the rest of the vertices.
 
 def get_adj_trigs(A, F, reference_mesh, meshpackage = 'mpi-mesh'):
+    """
+    get adj vertices and adj triangles
+    :param A: sparse connectivity matrix
+    :param F:
+    :param reference_mesh:
+    :param meshpackage:
+    :return:
+    """
     Adj = []
     for x in A:
         adj_x = []
