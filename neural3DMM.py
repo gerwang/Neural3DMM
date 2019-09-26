@@ -64,7 +64,7 @@ if dilation_flag:
     dilation = [2, 2, 1, 1, 1]
 else:
     dilation = None
-reference_points = [[3567, 4051, 4597]]  # used for COMA with 3 disconnected components#[[5930]]# [[414]]
+reference_points = [[5930]] #[[3567, 4051, 4597]]  # used for COMA with 3 disconnected components# [[414]]
 
 args = {'generative_model': generative_model,
         'name': name, 'data': os.path.join(root_dir, dataset, 'preprocessed', name),
