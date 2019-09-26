@@ -27,13 +27,6 @@ from tensorboardX import SummaryWriter
 
 from sklearn.metrics.pairwise import euclidean_distances
 
-from multiprocessing import set_start_method
-
-try:
-    set_start_method('spawn')
-except RuntimeError:
-    pass
-
 
 def is_py3():
     return sys.version_info >= (3, 0)
@@ -41,11 +34,14 @@ def is_py3():
 
 torch.backends.cudnn.benchmark = True
 
-meshpackage = 'trimesh'  # 'mpi-mesh', 'trimesh'
+if is_py3():
+    meshpackage = 'trimesh'
+else:
+    meshpackage = 'mpi-mesh'  # 'mpi-mesh', 'trimesh'
 root_dir = '/run/media/gerw/HDD/data/CoMA/data'
 
-dataset = 'sliced'
-name = 'config_env'
+dataset = 'FW_aligned_10000'
+name = 'base'
 
 GPU = True
 device_idx = 0
@@ -87,7 +83,7 @@ args = {'generative_model': generative_model,
         'resume': False,
 
         'mode': 'train', 'shuffle': True, 'nVal': 100, 'normalization': True,
-        'save_mesh': True}
+        'save_mesh': False}
 
 args['results_folder'] = os.path.join(args['results_folder'], 'latent_' + str(args['nz']))
 
@@ -160,8 +156,11 @@ else:
         M = [trimesh.base.Trimesh(vertices=M_verts_faces[i][0], faces=M_verts_faces[i][1], process=False) for i in
              range(len(M_verts_faces))]
         if args['save_mesh']:
-            for i in range(len(M)):
-                M[i].export(os.path.join(args['downsample_directory'], 'M_{}.obj'.format(i)))
+            if meshpackage != 'trimesh':
+                print('please use trimesh to export mesh')
+            else:
+                for i in range(len(M)):
+                    M[i].export(os.path.join(args['downsample_directory'], 'M_{}.obj'.format(i)))
     A = downsampling_matrices['A']
     D = downsampling_matrices['D']
     U = downsampling_matrices['U']

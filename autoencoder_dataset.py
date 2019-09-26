@@ -26,7 +26,9 @@ class autoencoder_dataset(Dataset):
         if self.loaded[idx] != 0:
             verts = self.buffer[idx]
         else:
-            basename = self.paths[idx].decode('utf-8')
+            basename = self.paths[idx]
+            if hasattr(basename, 'decode'):  # python2
+                basename = basename.decode('utf-8')
 
             verts_init = np.load(os.path.join(self.root_dir, 'points' + '_' + self.points_dataset, basename + '.npy'))
             if self.normalization:
