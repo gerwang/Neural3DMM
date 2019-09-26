@@ -1,11 +1,15 @@
 import numpy as np
+import os
 
 input_paths = [
-    '/run/media/gerw/HDD/data/CoMA/data/FW/train.npy'
-    '/run/media/gerw/HDD/data/CoMA/data/FW_aligned_10000/train.npy',
+    '/run/media/gerw/HDD/data/CoMA/data/FW_same/train.npy',
+    '/run/media/gerw/HDD/data/CoMA/data/FW_aligned_10000/train.npy'
 ]
 
-output_path = '/run/media/gerw/HDD/data/CoMA/data/FW_fusion_10000/train.npz'
+output_dir = '/run/media/gerw/HDD/data/CoMA/data/FW_fusion_10000'
+
+np_output_path = os.path.join(output_dir, 'train.npy')
+tag_output_path = os.path.join(output_dir, 'train_tag.npy')
 
 inputs = [np.load(path) for path in input_paths]
 
@@ -28,11 +32,9 @@ for i in range(n_people):
         tag[cnt] = i + 1, j
         cnt += 1
 
-while cnt < inputs.shape[0]:
+while cnt < output.shape[0]:
     tag[cnt] = -1, 0  # neutral expression
     cnt += 1
 
-np.savez(output_path, {
-    'points': output,
-    'tags': tag
-})
+np.save(np_output_path, output)
+np.save(tag_output_path, tag)
