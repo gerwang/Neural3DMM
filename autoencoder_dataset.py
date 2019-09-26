@@ -48,3 +48,36 @@ class autoencoder_dataset(Dataset):
         sample = {'points': verts}
 
         return sample
+
+
+class AutoEncoderDatasetWithTag(autoencoder_dataset):
+    def __init__(self, root_dir, points_dataset, shapedata, tags, normalization=True, dummy_node=True):
+        super().__init__(root_dir, points_dataset, shapedata, normalization, dummy_node)
+        self.tags = torch.as_tensor(tags)
+
+    def __getitem__(self, idx):
+        sample = super().__getitem__(idx)
+        sample['tag'] = self.tags[idx]
+        return sample
+
+
+class DeviceDataset(Dataset):
+    def __init__(self, np_data, np_tags, shapedata, device, normalization=True, dummy_node=True):
+        self.shapedata = shapedata
+        self.normalization = normalization
+        self.device = device
+        self.data = torch.Tensor(np_data).to(device)
+        self.dummy_node = dummy_node
+        self.tags = torch.Tensor(np_tags)
+
+    def len(self):
+        return self.data.shape[0]
+
+    def __getitem__(self, idx):
+        verts = self.data[idx]
+        tag = self.tags[idx]
+        sample = {
+            'points': verts,
+            'tags': tag
+        }
+        return sample
