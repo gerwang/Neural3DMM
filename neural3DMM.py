@@ -38,7 +38,7 @@ if is_py3():
     meshpackage = 'trimesh'
 else:
     meshpackage = 'mpi-mesh'  # 'mpi-mesh', 'trimesh'
-root_dir = '/run/media/gerw/HDD/data/CoMA/data'
+root_dir = '/home/jingwang/Data/data/COMA_result'
 
 dataset = 'FW_aligned_10000'
 name = 'base'
@@ -74,15 +74,15 @@ args = {'generative_model': generative_model,
         'seed': 2, 'loss': 'l1',
         'batch_size': 16, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
         'filter_sizes_enc': filter_sizes_enc, 'filter_sizes_dec': filter_sizes_dec,
-        'nz': 16,
+        'nz': 8,
         'ds_factors': ds_factors, 'step_sizes': step_sizes, 'dilation': dilation,
 
         'lr': 1e-3,
         'regularization': 5e-5,
         'scheduler': True, 'decay_rate': 0.99, 'decay_steps': 1,
-        'resume': False,
+        'resume': True,
 
-        'mode': 'train', 'shuffle': True, 'nVal': 100, 'normalization': True,
+        'mode': 'test', 'shuffle': True, 'nVal': 100, 'normalization': True,
         'save_mesh': False}
 
 args['results_folder'] = os.path.join(args['results_folder'], 'latent_' + str(args['nz']))
