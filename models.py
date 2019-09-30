@@ -50,7 +50,7 @@ class SpiralConv(nn.Module):
 
 
 class SpiralAutoencoder(nn.Module):
-    def __init__(self, filters_enc, filters_dec, latent_size, id_latent_size, exp_latent_size, sizes, spiral_sizes,
+    def __init__(self, filters_enc, filters_dec, id_latent_size, exp_latent_size, sizes, spiral_sizes,
                  spirals, D, U, device, activation='elu'):
         super(SpiralAutoencoder, self).__init__()
         self.id_latent_size = id_latent_size
@@ -80,8 +80,8 @@ class SpiralAutoencoder(nn.Module):
 
         self.conv = nn.ModuleList(self.conv)
 
-        self.fc_latent_enc = nn.Linear((sizes[-1] + 1) * input_size, latent_size)
-        self.fc_latent_dec = nn.Linear(latent_size, (sizes[-1] + 1) * filters_dec[0][0])
+        self.fc_latent_enc = nn.Linear((sizes[-1] + 1) * input_size, self.latent_size)
+        self.fc_latent_dec = nn.Linear(self.latent_size, (sizes[-1] + 1) * filters_dec[0][0])
 
         self.dconv = []
         input_size = filters_dec[0][0]

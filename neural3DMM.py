@@ -41,11 +41,11 @@ else:
     meshpackage = 'mpi-mesh'  # 'mpi-mesh', 'trimesh'
 root_dir = '/run/media/gerw/HDD/data/CoMA/data'
 
-dataset = 'FW_aligned_10000'
+dataset = 'FW_fusion_10000'
 name = 'base'
 
 GPU = True
-device_idx = select_GPUs(1, 0.7, 0.3)
+device_idx = select_GPUs(1, 0.7, 0.3)[0]
 torch.cuda.get_device_name(device_idx)
 
 args = {}
@@ -75,7 +75,7 @@ args = {'generative_model': generative_model,
         'seed': 2, 'loss': 'l1',
         'batch_size': 16, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
         'filter_sizes_enc': filter_sizes_enc, 'filter_sizes_dec': filter_sizes_dec,
-        'nz': 16,
+        'id_latent_size': 50, 'exp_latent_size': 25,
         'ds_factors': ds_factors, 'step_sizes': step_sizes, 'dilation': dilation,
 
         'lr': 1e-3,
@@ -87,7 +87,8 @@ args = {'generative_model': generative_model,
         'save_mesh': False,
         'n_id_train': 140, 'n_id_test': 10, 'n_exp': 47}
 
-args['results_folder'] = os.path.join(args['results_folder'], 'latent_' + str(args['nz']))
+args['results_folder'] = os.path.join(args['results_folder'],
+                                      'id_{}_exp_{}'.format(args['id_latent_size'], args['exp_latent_size']))
 
 if not os.path.exists(os.path.join(args['results_folder'])):
     os.makedirs(os.path.join(args['results_folder']))
@@ -231,7 +232,8 @@ tU = [torch.from_numpy(s).float().to(device) for s in bU]
 # Building model, optimizer, and loss function
 
 dataset_train = DeviceDataset(np_data=shapedata.vertices_train, np_tags=shapedata.tags_train,
-                              shapedata=shapedata, device=device, n_id=args['n_id_train'], n_exp=args['n_exp'])
+                              shapedata=shapedata, device=torch.device('cpu'), n_id=args['n_id_train'], # fixme
+                              n_exp=args['n_exp'])
 
 dataloader_train = DataLoader(dataset_train, batch_size=args['batch_size'], shuffle=args['shuffle'], num_workers=0)
 
@@ -243,7 +245,8 @@ dataloader_test = DataLoader(dataset_test, batch_size=args['batch_size'], shuffl
 if 'autoencoder' in args['generative_model']:
     model = SpiralAutoencoder(filters_enc=args['filter_sizes_enc'],
                               filters_dec=args['filter_sizes_dec'],
-                              latent_size=args['nz'],
+                              id_latent_size=args['id_latent_size'],
+                              exp_latent_size=args['exp_latent_size'],
                               sizes=sizes,
                               spiral_sizes=spiral_sizes,
                               spirals=tspirals,

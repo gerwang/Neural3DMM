@@ -41,7 +41,7 @@ class autoencoder_dataset(Dataset):
                 verts = np.zeros((verts_init.shape[0] + 1, verts_init.shape[1]), dtype=np.float32)
                 verts[:-1, :] = verts_init
                 verts_init = verts
-            verts = torch.Tensor(verts_init).cuda()
+            verts = torch.tensor(verts_init, device=torch.device('cuda'))
             self.buffer[idx] = verts
             self.loaded[idx] = 1
 
@@ -68,25 +68,25 @@ class DeviceDataset(Dataset):
         if dummy_node:
             self.data = torch.zeros((np_data.shape[0], np_data.shape[1] + 1, np_data.shape[2]), dtype=torch.float32,
                                     device=device)
-            self.data[:, :-1, :] = np_data
+            self.data[:, :-1, :] = torch.as_tensor(np_data)
         else:
             self.data = torch.as_tensor(np_data).to(device)
         self.dummy_node = dummy_node
-        self.tags = torch.Tensor(np_tags)
+        self.tags = torch.as_tensor(np_tags)
         self.n_id = n_id
         self.n_exp = n_exp
 
     def get_idx(self, id_idx, exp_idx):
         return id_idx * self.n_exp + exp_idx
 
-    def len(self):
+    def __len__(self):  # prevbug: __len__ vs. len
         return self.data.shape[0]
 
     def __getitem__(self, idx):
         verts = self.data[idx]
         sample = {
             'points': verts,
-            'ids': torch.Tensor([idx], dtype=torch.int32)
+            'ids': torch.tensor([idx], dtype=torch.int32)
         }
         return sample
 
@@ -104,7 +104,7 @@ class DeviceDataset(Dataset):
             else:
                 target = self.data[self.get_idx(id_t, 0)]  # id starts at 1, but 0 is for mean face
             res.append(target)
-        res = torch.Tensor(res)
+        res = torch.tensor(res)
         return res
 
     def get_exp_targets(self, ids):
@@ -115,10 +115,10 @@ class DeviceDataset(Dataset):
             exp_t = self.tags[idx, 1]
             target = self.data[self.get_idx(0, exp_t)]
             res.append(target)
-        res = torch.Tensor(res)
+        res = torch.tensor(res)
         return res
 
     def get_mean_targets(self, ids):
         bsize = ids.shape[0]
-        res = torch.Tensor(bsize * [self.data[self.get_idx(0, 0)]])
+        res = torch.tensor(bsize * [self.data[self.get_idx(0, 0)]])
         return res

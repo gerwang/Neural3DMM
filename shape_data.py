@@ -83,6 +83,8 @@ class ShapeData(object):
                 self.N = self.vertices_train.shape[0]
 
                 print('Vertices normalized')
+            elif self.already_normalized:
+                print('Vertices already normalized')
             else:
                 print('Vertices not normalized')
 

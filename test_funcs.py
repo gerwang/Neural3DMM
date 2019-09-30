@@ -10,8 +10,8 @@ def test_autoencoder_dataloader(device, model, dataloader_test, shapedata, mm_co
     model.eval()
     l1_loss = 0
     l2_loss = 0
-    shapedata_mean = torch.Tensor(shapedata.mean).to(device)
-    shapedata_std = torch.Tensor(shapedata.std).to(device)
+    shapedata_mean = torch.tensor(shapedata.mean, device=device)
+    shapedata_std = torch.tensor(shapedata.std, device=device)
     with torch.no_grad():
         for i, sample_dict in enumerate(tqdm(dataloader_test)):
             tx = sample_dict['points'].to(device)
