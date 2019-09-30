@@ -4,6 +4,7 @@ import os
 import copy
 import pickle
 import sys
+from easydl.common.gpuutils import select_GPUs
 
 try:
     from psbody.mesh import Mesh
@@ -14,7 +15,7 @@ import mesh_sampling
 import trimesh
 from shape_data import ShapeData
 
-from autoencoder_dataset import autoencoder_dataset
+from autoencoder_dataset import DeviceDataset
 from torch.utils.data import DataLoader
 
 from spiral_utils import get_adj_trigs, generate_spirals
@@ -44,7 +45,7 @@ dataset = 'FW_aligned_10000'
 name = 'base'
 
 GPU = True
-device_idx = 0
+device_idx = select_GPUs(1, 0.7, 0.3)
 torch.cuda.get_device_name(device_idx)
 
 args = {}
@@ -64,7 +65,7 @@ if dilation_flag:
     dilation = [2, 2, 1, 1, 1]
 else:
     dilation = None
-reference_points = [[5930]] #[[3567, 4051, 4597]]  # used for COMA with 3 disconnected components# [[414]]
+reference_points = [[5930]]  # [[3567, 4051, 4597]]  # used for COMA with 3 disconnected components# [[414]]
 
 args = {'generative_model': generative_model,
         'name': name, 'data': os.path.join(root_dir, dataset, 'preprocessed', name),
@@ -82,8 +83,9 @@ args = {'generative_model': generative_model,
         'scheduler': True, 'decay_rate': 0.99, 'decay_steps': 1,
         'resume': False,
 
-        'mode': 'train', 'shuffle': True, 'nVal': 100, 'normalization': True,
-        'save_mesh': False}
+        'mode': 'train', 'shuffle': True, 'normalization': True,
+        'save_mesh': False,
+        'n_id_train': 140, 'n_id_test': 10, 'n_exp': 47}
 
 args['results_folder'] = os.path.join(args['results_folder'], 'latent_' + str(args['nz']))
 
@@ -112,25 +114,39 @@ if not os.path.exists(downsample_directory):
 np.random.seed(args['seed'])
 print("Loading data .. ")
 if not os.path.exists(args['data'] + '/mean.npy') or not os.path.exists(args['data'] + '/std.npy'):
-    shapedata = ShapeData(nVal=args['nVal'],
-                          train_file=args['data'] + '/train.npy',
+    shapedata = ShapeData(train_file=args['data'] + '/train.npy',
                           test_file=args['data'] + '/test.npy',
+                          train_tag_file=os.path.join(args['data'], 'train_tag.npy'),
+                          test_tag_file=os.path.join(args['data'], 'test_tag.npy'),
                           reference_mesh_file=args['reference_mesh_file'],
                           normalization=args['normalization'],
+                          already_normalized=False,
                           meshpackage=meshpackage, load_flag=True)
     np.save(args['data'] + '/mean.npy', shapedata.mean)
     np.save(args['data'] + '/std.npy', shapedata.std)
+    if shapedata.normalization:
+        np.save(os.path.join(args['data'], 'train_normalized.npy'), shapedata.vertices_train)
+        np.save(os.path.join(args['data'], 'test_normalized.npy'), shapedata.vertices_test)
 else:
-    shapedata = ShapeData(nVal=args['nVal'],
-                          train_file=args['data'] + '/train.npy',
-                          test_file=args['data'] + '/test.npy',
+    train_name = ''
+    test_name = ''
+    if args['normalization']:
+        train_name = 'train_normalized.npy'
+        test_name = 'test_normalized.npy'
+    else:
+        train_name = 'train.npy'
+        test_name = 'test.npy'
+
+    shapedata = ShapeData(train_file=os.path.join(args['data'], train_name),
+                          test_file=os.path.join(args['data'], test_name),
+                          train_tag_file=os.path.join(args['data'], 'train_tag.npy'),
+                          test_tag_file=os.path.join(args['data'], 'test_tag.npy'),
                           reference_mesh_file=args['reference_mesh_file'],
                           normalization=args['normalization'],
-                          meshpackage=meshpackage, load_flag=False)
+                          already_normalized=args['normalization'],
+                          meshpackage=meshpackage, load_flag=True)
     shapedata.mean = np.load(args['data'] + '/mean.npy')
     shapedata.std = np.load(args['data'] + '/std.npy')
-    shapedata.n_vertex = shapedata.mean.shape[0]
-    shapedata.n_features = shapedata.mean.shape[1]
 
 if not os.path.exists(os.path.join(args['downsample_directory'], 'downsampling_matrices.pkl')):
     if shapedata.meshpackage == 'trimesh':
@@ -191,7 +207,7 @@ spirals_np, spiral_sizes, spirals = generate_spirals(args['step_sizes'],
 bU = []
 bD = []
 for i in range(len(D)):
-    d = np.zeros((1, D[i].shape[0] + 1, D[i].shape[1] + 1))
+    d = np.zeros((1, D[i].shape[0] + 1, D[i].shape[1] + 1))  # TODO still don't know what it is doing
     u = np.zeros((1, U[i].shape[0] + 1, U[i].shape[1] + 1))
     d[0, :-1, :-1] = D[i].todense()
     u[0, :-1, :-1] = U[i].todense()
@@ -214,26 +230,15 @@ tU = [torch.from_numpy(s).float().to(device) for s in bU]
 
 # Building model, optimizer, and loss function
 
-dataset_train = autoencoder_dataset(root_dir=args['data'], points_dataset='train',
-                                    shapedata=shapedata,
-                                    normalization=args['normalization'])
+dataset_train = DeviceDataset(np_data=shapedata.vertices_train, np_tags=shapedata.tags_train,
+                              shapedata=shapedata, device=device, n_id=args['n_id_train'], n_exp=args['n_exp'])
 
-dataloader_train = DataLoader(dataset_train, batch_size=args['batch_size'], \
-                              shuffle=args['shuffle'], num_workers=args['num_workers'])
+dataloader_train = DataLoader(dataset_train, batch_size=args['batch_size'], shuffle=args['shuffle'], num_workers=0)
 
-dataset_val = autoencoder_dataset(root_dir=args['data'], points_dataset='val',
-                                  shapedata=shapedata,
-                                  normalization=args['normalization'])
+dataset_test = DeviceDataset(np_data=shapedata.vertices_test, np_tags=shapedata.tags_test,
+                             shapedata=shapedata, device=device, n_id=args['n_id_test'], n_exp=args['n_exp'])
 
-dataloader_val = DataLoader(dataset_val, batch_size=args['batch_size'], \
-                            shuffle=False, num_workers=args['num_workers'])
-
-dataset_test = autoencoder_dataset(root_dir=args['data'], points_dataset='test',
-                                   shapedata=shapedata,
-                                   normalization=args['normalization'])
-
-dataloader_test = DataLoader(dataset_test, batch_size=args['batch_size'], \
-                             shuffle=False, num_workers=args['num_workers'])
+dataloader_test = DataLoader(dataset_test, batch_size=args['batch_size'], shuffle=False, num_workers=0)
 
 if 'autoencoder' in args['generative_model']:
     model = SpiralAutoencoder(filters_enc=args['filter_sizes_enc'],
@@ -282,7 +287,8 @@ if args['mode'] == 'train':
         start_epoch = 0
 
     if args['generative_model'] == 'autoencoder':
-        train_autoencoder_dataloader(dataloader_train, dataloader_val,
+        train_autoencoder_dataloader(dataloader_train, dataloader_test,
+                                     dataset_train, dataset_test,
                                      device, model, optim, loss_fn,
                                      bsize=args['batch_size'],
                                      start_epoch=start_epoch,
@@ -301,7 +307,7 @@ if args['mode'] == 'test':
     model.load_state_dict(checkpoint_dict['autoencoder_state_dict'])
 
     predictions, norm_l1_loss, l2_loss = test_autoencoder_dataloader(device, model, dataloader_test,
-                                                                     shapedata, mm_constant=1000)
+                                                                     shapedata, mm_constant=100)  # for FW
     np.save(os.path.join(prediction_path, 'predictions'), predictions)
 
     print('autoencoder: normalized loss', norm_l1_loss)

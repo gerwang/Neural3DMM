@@ -62,22 +62,63 @@ class AutoEncoderDatasetWithTag(autoencoder_dataset):
 
 
 class DeviceDataset(Dataset):
-    def __init__(self, np_data, np_tags, shapedata, device, normalization=True, dummy_node=True):
+    def __init__(self, np_data, np_tags, shapedata, device, n_id, n_exp, dummy_node=True):
         self.shapedata = shapedata
-        self.normalization = normalization
         self.device = device
-        self.data = torch.Tensor(np_data).to(device)
+        if dummy_node:
+            self.data = torch.zeros((np_data.shape[0], np_data.shape[1] + 1, np_data.shape[2]), dtype=torch.float32,
+                                    device=device)
+            self.data[:, :-1, :] = np_data
+        else:
+            self.data = torch.as_tensor(np_data).to(device)
         self.dummy_node = dummy_node
         self.tags = torch.Tensor(np_tags)
+        self.n_id = n_id
+        self.n_exp = n_exp
+
+    def get_idx(self, id_idx, exp_idx):
+        return id_idx * self.n_exp + exp_idx
 
     def len(self):
         return self.data.shape[0]
 
     def __getitem__(self, idx):
         verts = self.data[idx]
-        tag = self.tags[idx]
         sample = {
             'points': verts,
-            'tags': tag
+            'ids': torch.Tensor([idx], dtype=torch.int32)
         }
         return sample
+
+    def get_id_targets(self, ids):
+        bsize = ids.shape[0]
+        res = []
+        for i in range(bsize):
+            idx = ids[i]
+            id_t = self.tags[idx, 0]
+            exp_t = self.tags[idx, 1]
+            if id_t == -1:
+                if exp_t != 0:
+                    raise RuntimeError('invalid exp')
+                target = self.data[idx]
+            else:
+                target = self.data[self.get_idx(id_t, 0)]  # id starts at 1, but 0 is for mean face
+            res.append(target)
+        res = torch.Tensor(res)
+        return res
+
+    def get_exp_targets(self, ids):
+        bsize = ids.shape[0]
+        res = []
+        for i in range(bsize):
+            idx = ids[i]
+            exp_t = self.tags[idx, 1]
+            target = self.data[self.get_idx(0, exp_t)]
+            res.append(target)
+        res = torch.Tensor(res)
+        return res
+
+    def get_mean_targets(self, ids):
+        bsize = ids.shape[0]
+        res = torch.Tensor(bsize * [self.data[self.get_idx(0, 0)]])
+        return res
