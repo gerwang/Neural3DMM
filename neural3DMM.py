@@ -1,9 +1,10 @@
-import numpy as np
+import copy
 import json
 import os
-import copy
 import pickle
 import sys
+
+import numpy as np
 from easydl.common.gpuutils import select_GPUs
 
 try:
@@ -56,13 +57,13 @@ downsample_method = 'COMA_downsample'  # choose'COMA_downsample' or 'meshlab_dow
 # below are the arguments for the DFAUST run
 reference_mesh_file = os.path.join(root_dir, dataset, 'template', 'template.obj')
 downsample_directory = os.path.join(root_dir, dataset, 'template', downsample_method)
-ds_factors = [4, 4, 4, 4]
-step_sizes = [2, 2, 1, 1, 1]
-filter_sizes_enc = [[3, 16, 32, 64, 128], [[], [], [], [], []]]
-filter_sizes_dec = [[128, 64, 32, 32, 16], [[], [], [], [], 3]]
+ds_factors = [4, 4, 4, 4, 4]
+step_sizes = [1, 1, 1, 1, 1, 1]
+filter_sizes_enc = [[3, 8, 16, 32, 64, 128], [[], [], [], [], [], []]]
+filter_sizes_dec = [[128, 64, 32, 16, 8, 3], [[], [], [], [], [], 3]]
 dilation_flag = True
 if dilation_flag:
-    dilation = [2, 2, 1, 1, 1]
+    dilation = [1, 1, 1, 1, 1, 1]
 else:
     dilation = None
 reference_points = [[5930]]  # [[3567, 4051, 4597]]  # used for COMA with 3 disconnected components# [[414]]
@@ -73,7 +74,7 @@ args = {'generative_model': generative_model,
         'reference_mesh_file': reference_mesh_file, 'downsample_directory': downsample_directory,
         'checkpoint_file': 'checkpoint',
         'seed': 2, 'loss': 'l1',
-        'batch_size': 16, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
+        'batch_size': 8, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
         'filter_sizes_enc': filter_sizes_enc, 'filter_sizes_dec': filter_sizes_dec,
         'id_latent_size': 50, 'exp_latent_size': 25,
         'ds_factors': ds_factors, 'step_sizes': step_sizes, 'dilation': dilation,
@@ -232,7 +233,7 @@ tU = [torch.from_numpy(s).float().to(device) for s in bU]
 # Building model, optimizer, and loss function
 
 dataset_train = DeviceDataset(np_data=shapedata.vertices_train, np_tags=shapedata.tags_train,
-                              shapedata=shapedata, device=torch.device('cpu'), n_id=args['n_id_train'], # fixme
+                              shapedata=shapedata, device=device, n_id=args['n_id_train'],
                               n_exp=args['n_exp'])
 
 dataloader_train = DataLoader(dataset_train, batch_size=args['batch_size'], shuffle=args['shuffle'], num_workers=0)

@@ -1,7 +1,8 @@
-from torch.utils.data import Dataset
-import torch
-import numpy as np
 import os
+
+import numpy as np
+import torch
+from torch.utils.data import Dataset
 
 
 class autoencoder_dataset(Dataset):
@@ -94,7 +95,7 @@ class DeviceDataset(Dataset):
         bsize = ids.shape[0]
         res = []
         for i in range(bsize):
-            idx = ids[i]
+            idx = ids[i].item()
             id_t = self.tags[idx, 0]
             exp_t = self.tags[idx, 1]
             if id_t == -1:
@@ -104,21 +105,21 @@ class DeviceDataset(Dataset):
             else:
                 target = self.data[self.get_idx(id_t, 0)]  # id starts at 1, but 0 is for mean face
             res.append(target)
-        res = torch.tensor(res)
+        res = torch.cat([x.unsqueeze(0) for x in res], dim=0)
         return res
 
     def get_exp_targets(self, ids):
         bsize = ids.shape[0]
         res = []
         for i in range(bsize):
-            idx = ids[i]
+            idx = ids[i].item()  # prevbug: torch scalar tensor cannot use for index
             exp_t = self.tags[idx, 1]
             target = self.data[self.get_idx(0, exp_t)]
             res.append(target)
-        res = torch.tensor(res)
+        res = torch.cat([x.unsqueeze(0) for x in res], dim=0)
         return res
 
     def get_mean_targets(self, ids):
         bsize = ids.shape[0]
-        res = torch.tensor(bsize * [self.data[self.get_idx(0, 0)]])
+        res = torch.cat(bsize * [self.data[self.get_idx(0, 0)].unsqueeze(0)], dim=0)
         return res
