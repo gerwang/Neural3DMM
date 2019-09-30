@@ -1,7 +1,7 @@
 import os
+
 import torch
 from tqdm import tqdm
-import numpy as np
 
 
 def train_autoencoder_dataloader(dataloader_train, dataloader_val,
