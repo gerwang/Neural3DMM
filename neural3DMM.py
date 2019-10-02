@@ -41,13 +41,13 @@ if is_py3():
     meshpackage = 'trimesh'
 else:
     meshpackage = 'mpi-mesh'  # 'mpi-mesh', 'trimesh'
-root_dir = '/run/media/gerw/HDD/data/CoMA/data'
+root_dir = '/mnt/Data2/jingwang/data/COMA_result'
 
 dataset = 'FW_fusion_10000'
 name = 'base'
 
 GPU = True
-gpu_ids = select_GPUs(1, 0.7, 0.3)
+gpu_ids = select_GPUs(4, 0.7, 0.3)
 device_idx = gpu_ids[0]
 torch.cuda.get_device_name(device_idx)
 
@@ -76,12 +76,12 @@ args = {'generative_model': generative_model,
         'reference_mesh_file': reference_mesh_file, 'downsample_directory': downsample_directory,
         'checkpoint_file': 'checkpoint',
         'seed': 2, 'loss': 'l1',
-        'batch_size': 4, 'total_batch_size': 16, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
+        'batch_size': 36, 'total_batch_size': 36, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
         'filter_sizes_enc': filter_sizes_enc, 'filter_sizes_dec': filter_sizes_dec,
         'id_latent_size': 50, 'exp_latent_size': 25,
         'ds_factors': ds_factors, 'step_sizes': step_sizes, 'dilation': dilation,
 
-        'lr': 1e-3,
+        'lr': 2.25e-3,
         'regularization': 5e-5,
         'scheduler': True, 'decay_rate': 0.99, 'decay_steps': 1,
         'resume': False,
@@ -228,25 +228,25 @@ else:
     device = torch.device("cpu")
 print(device)
 
-tspirals = [torch.from_numpy(s).long().to(device) for s in spirals_np]
-tD = [torch.from_numpy(s).float().to(device) for s in bD]
-tU = [torch.from_numpy(s).float().to(device) for s in bU]
+tspirals = [torch.from_numpy(s).long() for s in spirals_np]
+tD = [torch.from_numpy(s).float() for s in bD]
+tU = [torch.from_numpy(s).float() for s in bU]
 
 # Building model, optimizer, and loss function
 
 dataset_train = DeviceDataset(np_data=shapedata.vertices_train, np_tags=shapedata.tags_train,
-                              shapedata=shapedata, device=device, n_id=args['n_id_train'],
+                              shapedata=shapedata, device=torch.device('cpu'), n_id=args['n_id_train'],
                               n_exp=args['n_exp'])
 
 dataloader_train = DataLoader(dataset_train, batch_size=args['batch_size'], shuffle=args['shuffle'],
-                              num_workers=args['num_workers'])
+                              num_workers=args['num_workers'], pin_memory=True)
 
 dataset_test = DeviceDataset(np_data=shapedata.vertices_test, np_tags=shapedata.tags_test,
-                             shapedata=shapedata, device=device, n_id=args['n_id_test'],
+                             shapedata=shapedata, device=torch.device('cpu'), n_id=args['n_id_test'],
                              n_exp=args['n_exp'])
 
 dataloader_test = DataLoader(dataset_test, batch_size=args['batch_size'], shuffle=False,
-                             num_workers=args['num_workers'])
+                             num_workers=args['num_workers'], pin_memory=True)
 
 if 'autoencoder' in args['generative_model']:
     model = nn.DataParallel(SpiralAutoencoder(filters_enc=args['filter_sizes_enc'],
@@ -256,7 +256,7 @@ if 'autoencoder' in args['generative_model']:
                                               sizes=sizes,
                                               spiral_sizes=spiral_sizes,
                                               spirals=tspirals,
-                                              D=tD, U=tU), device_ids=gpu_ids, output_device=device)
+                                              D=tD, U=tU).to(device), device_ids=gpu_ids, output_device=device)
 
 optim = torch.optim.Adam(model.parameters(), lr=args['lr'], weight_decay=args['regularization'])
 if args['scheduler']:

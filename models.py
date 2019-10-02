@@ -47,13 +47,14 @@ class SpiralConv(nn.Module):
 
 
 class FakeArray(object):
-    def __init__(self, master, name, buffer_list):
+    def __init__(self, master, name, n, buffer_list=None):
         self.master = master
-        self.n = len(buffer_list)
+        self.n = n
         self.name = name
         self.template = name + '_%d'
-        for i in range(self.n):
-            self.master.register_buffer(self.template % i, buffer_list[i])
+        if buffer_list is not None:
+            for i in range(self.n):
+                self.master.register_buffer(self.template % i, buffer_list[i])
 
     def __len__(self):
         return self.n
@@ -76,9 +77,9 @@ class SpiralAutoencoder(nn.Module):
         self.filters_enc = filters_enc
         self.filters_dec = filters_dec
         self.spiral_sizes = spiral_sizes
-        self.spirals = FakeArray(self, 'spirals', spirals)
-        self.D = FakeArray(self, 'D', D)
-        self.U = FakeArray(self, 'U', U)
+        self.spirals = FakeArray(self, 'spirals', len(spirals), spirals)
+        self.D = FakeArray(self, 'D', len(D), D)
+        self.U = FakeArray(self, 'U', len(U), U)
         self.activation = activation
 
         self.conv = []
@@ -127,8 +128,10 @@ class SpiralAutoencoder(nn.Module):
 
     def encode(self, x):
         bsize = x.size(0)
-        S = self.spirals
-        D = self.D
+        #S = self.spirals
+        S = FakeArray(self, 'spirals', len(self.spirals))
+        #D = self.D
+        D = FakeArray(self, 'D', len(self.D))
 
         j = 0
         for i in range(len(self.spiral_sizes) - 1):
@@ -143,8 +146,10 @@ class SpiralAutoencoder(nn.Module):
 
     def decode(self, z):
         bsize = z.size(0)
-        S = self.spirals
-        U = self.U
+        #S = self.spirals
+        S = FakeArray(self, 'spirals', len(self.spirals))
+        #U = self.U
+        U = FakeArray(self, 'U', len(self.U))
 
         x = self.fc_latent_dec(z)
         x = x.view(bsize, self.sizes[-1] + 1, -1)
