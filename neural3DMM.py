@@ -47,8 +47,9 @@ dataset = 'FW_fusion_10000'
 name = 'base'
 
 GPU = True
-gpu_ids = select_GPUs(4, 0.7, 0.3)
+gpu_ids = select_GPUs(3, 0.7, 0.3)
 device_idx = gpu_ids[0]
+print(gpu_ids)
 torch.cuda.get_device_name(device_idx)
 
 args = {}
@@ -76,12 +77,12 @@ args = {'generative_model': generative_model,
         'reference_mesh_file': reference_mesh_file, 'downsample_directory': downsample_directory,
         'checkpoint_file': 'checkpoint',
         'seed': 2, 'loss': 'l1',
-        'batch_size': 36, 'total_batch_size': 36, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
+        'batch_size': 27, 'total_batch_size': 27, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
         'filter_sizes_enc': filter_sizes_enc, 'filter_sizes_dec': filter_sizes_dec,
         'id_latent_size': 50, 'exp_latent_size': 25,
         'ds_factors': ds_factors, 'step_sizes': step_sizes, 'dilation': dilation,
 
-        'lr': 2.25e-3,
+        'lr': 1.6875e-3,
         'regularization': 5e-5,
         'scheduler': True, 'decay_rate': 0.99, 'decay_steps': 1,
         'resume': False,
