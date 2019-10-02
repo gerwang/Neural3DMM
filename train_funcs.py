@@ -13,17 +13,21 @@ def dict_to_device(input_dict, device):
 
 def train_autoencoder_dataloader(dataloader_train, dataloader_val,
                                  device, model, optim, loss_fn,
-                                 bsize, start_epoch, n_epochs, eval_freq, scheduler=None,
+                                 bsize, total_bsize, start_epoch, n_epochs, eval_freq, scheduler=None,
                                  writer=None, save_recons=True, shapedata=None,
                                  metadata_dir=None, samples_dir=None, checkpoint_path=None):
     total_steps = start_epoch * len(dataloader_train)
+
+    assert total_bsize % bsize == 0
 
     for epoch in range(start_epoch, n_epochs):
         model.train()
 
         tloss = []
+        cur_cnt = 0
         for b, sample_dict in enumerate(tqdm(dataloader_train)):
-            optim.zero_grad()
+            if cur_cnt == 0:
+                optim.zero_grad()
             sample_dict = dict_to_device(sample_dict, device)
 
             tx = sample_dict['points']
@@ -35,7 +39,10 @@ def train_autoencoder_dataloader(dataloader_train, dataloader_val,
                                                                                                     loss_fn, tx_dict)
 
             loss.backward()
-            optim.step()
+            cur_cnt += cur_bsize
+            if cur_cnt == total_bsize or b + 1 == len(dataloader_train):
+                cur_cnt = 0
+                optim.step()
 
             tloss.append(cur_bsize * loss.item())
             if writer and total_steps % eval_freq == 0:
