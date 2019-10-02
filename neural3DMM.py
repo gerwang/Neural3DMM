@@ -1,9 +1,11 @@
-import numpy as np
+import copy
 import json
 import os
-import copy
 import pickle
 import sys
+
+import numpy as np
+from easydl.common.gpuutils import select_GPUs
 
 try:
     from psbody.mesh import Mesh
@@ -38,13 +40,13 @@ if is_py3():
     meshpackage = 'trimesh'
 else:
     meshpackage = 'mpi-mesh'  # 'mpi-mesh', 'trimesh'
-root_dir = '/home/jingwang/Data/data/COMA_result'
+root_dir = '/run/media/gerw/HDD/data/CoMA/data'
 
 dataset = 'FW_aligned_10000'
-name = 'base'
+name = 'paper_arch'
 
 GPU = True
-device_idx = 0
+device_idx = select_GPUs(1, 0.7, 0.3)[0]
 torch.cuda.get_device_name(device_idx)
 
 args = {}
@@ -55,16 +57,16 @@ downsample_method = 'COMA_downsample'  # choose'COMA_downsample' or 'meshlab_dow
 # below are the arguments for the DFAUST run
 reference_mesh_file = os.path.join(root_dir, dataset, 'template', 'template.obj')
 downsample_directory = os.path.join(root_dir, dataset, 'template', downsample_method)
-ds_factors = [4, 4, 4, 4]
-step_sizes = [2, 2, 1, 1, 1]
-filter_sizes_enc = [[3, 16, 32, 64, 128], [[], [], [], [], []]]
-filter_sizes_dec = [[128, 64, 32, 32, 16], [[], [], [], [], 3]]
+ds_factors = [4, 4, 4, 4, 4]
+step_sizes = [1, 1, 1, 1, 1, 1]
+filter_sizes_enc = [[3, 8, 16, 32, 64, 128], [[], [], [], [], [], []]]
+filter_sizes_dec = [[128, 64, 32, 16, 8, 3], [[], [], [], [], [], 3]]
 dilation_flag = True
 if dilation_flag:
-    dilation = [2, 2, 1, 1, 1]
+    dilation = [1, 1, 1, 1, 1, 1]
 else:
     dilation = None
-reference_points = [[5930]] #[[3567, 4051, 4597]]  # used for COMA with 3 disconnected components# [[414]]
+reference_points = [[5930]]  # [[3567, 4051, 4597]]  # used for COMA with 3 disconnected components# [[414]]
 
 args = {'generative_model': generative_model,
         'name': name, 'data': os.path.join(root_dir, dataset, 'preprocessed', name),
@@ -80,9 +82,9 @@ args = {'generative_model': generative_model,
         'lr': 1e-3,
         'regularization': 5e-5,
         'scheduler': True, 'decay_rate': 0.99, 'decay_steps': 1,
-        'resume': True,
+        'resume': False,
 
-        'mode': 'test', 'shuffle': True, 'nVal': 100, 'normalization': True,
+        'mode': 'train', 'shuffle': True, 'nVal': 100, 'normalization': True,
         'save_mesh': False}
 
 args['results_folder'] = os.path.join(args['results_folder'], 'latent_' + str(args['nz']))
