@@ -87,39 +87,28 @@ class DeviceDataset(Dataset):
         verts = self.data[idx]
         sample = {
             'points': verts,
-            'ids': torch.tensor([idx], dtype=torch.int32)
+            'id_targets': self.get_id_target(idx),
+            'exp_targets': self.get_exp_target(idx),
+            'stacked_mean': self.get_mean_target()
         }
         return sample
 
-    def get_id_targets(self, ids):
-        bsize = ids.shape[0]
-        res = []
-        for i in range(bsize):
-            idx = ids[i].item()
-            id_t = self.tags[idx, 0]
-            exp_t = self.tags[idx, 1]
-            if id_t == -1:
-                if exp_t != 0:
-                    raise RuntimeError('invalid exp')
-                target = self.data[idx]
-            else:
-                target = self.data[self.get_idx(id_t, 0)]  # id starts at 1, but 0 is for mean face
-            res.append(target)
-        res = torch.cat([x.unsqueeze(0) for x in res], dim=0)
-        return res
+    def get_id_target(self, idx):
+        id_t = self.tags[idx, 0]
+        exp_t = self.tags[idx, 1]
+        if id_t == -1:
+            if exp_t != 0:
+                raise RuntimeError('invalid exp')
+            target = self.data[idx]
+        else:
+            target = self.data[self.get_idx(id_t, 0)]  # id starts at 1, but 0 is for mean face
+        return target
 
-    def get_exp_targets(self, ids):
-        bsize = ids.shape[0]
-        res = []
-        for i in range(bsize):
-            idx = ids[i].item()  # prevbug: torch scalar tensor cannot use for index
-            exp_t = self.tags[idx, 1]
-            target = self.data[self.get_idx(0, exp_t)]
-            res.append(target)
-        res = torch.cat([x.unsqueeze(0) for x in res], dim=0)
-        return res
+    def get_exp_target(self, idx):
+        exp_t = self.tags[idx, 1]
+        target = self.data[self.get_idx(0, exp_t)]
+        return target
 
-    def get_mean_targets(self, ids):
-        bsize = ids.shape[0]
-        res = torch.cat(bsize * [self.data[self.get_idx(0, 0)].unsqueeze(0)], dim=0)
-        return res
+    def get_mean_target(self):
+        target = self.data[self.get_idx(0, 0)]
+        return target

@@ -1,15 +1,12 @@
 import torch
 import torch.nn as nn
 
-import pdb
-
 
 class SpiralConv(nn.Module):
-    def __init__(self, in_c, spiral_size, out_c, activation='elu', bias=True, device=None):
+    def __init__(self, in_c, spiral_size, out_c, activation='elu', bias=True):
         super(SpiralConv, self).__init__()
         self.in_c = in_c
         self.out_c = out_c
-        self.device = device
 
         self.conv = nn.Linear(in_c * spiral_size, out_c, bias=bias)
 
@@ -33,7 +30,7 @@ class SpiralConv(nn.Module):
         _, _, spiral_size = spiral_adj.size()
 
         spirals_index = spiral_adj.view(bsize * num_pts * spiral_size)  # [1d array of batch,vertx,vertx-adj]
-        batch_index = torch.arange(bsize, device=self.device).view(-1, 1).repeat([1, num_pts * spiral_size]).view(
+        batch_index = torch.arange(bsize, device=x.device).view(-1, 1).repeat([1, num_pts * spiral_size]).view(
             -1).long()  # [0*numpt,1*numpt,etc.]
         spirals = x[batch_index, spirals_index, :].view(bsize * num_pts,
                                                         spiral_size * feats)  # [bsize*numpt, spiral*feats]
@@ -42,11 +39,24 @@ class SpiralConv(nn.Module):
         out_feat = self.activation(out_feat)
 
         out_feat = out_feat.view(bsize, num_pts, self.out_c)
-        zero_padding = torch.ones((1, x.size(1), 1), device=self.device)
+        zero_padding = torch.ones((1, x.size(1), 1), device=x.device)
         zero_padding[0, -1, 0] = 0.0
         out_feat = out_feat * zero_padding
 
         return out_feat
+
+
+class FakeArray(object):
+    def __init__(self, master, n, template):
+        self.master = master
+        self.n = n
+        self.template = template
+
+    def __getitem__(self, x):
+        x %= self.n
+        if x < 0:
+            x += self.n
+        return getattr(self.master, self.template % x)
 
 
 class SpiralAutoencoder(nn.Module):
@@ -71,11 +81,11 @@ class SpiralAutoencoder(nn.Module):
         for i in range(len(spiral_sizes) - 1):
             if filters_enc[1][i]:
                 self.conv.append(SpiralConv(input_size, spiral_sizes[i], filters_enc[1][i],
-                                            activation=self.activation, device=device).to(device))
+                                            activation=self.activation))
                 input_size = filters_enc[1][i]
 
             self.conv.append(SpiralConv(input_size, spiral_sizes[i], filters_enc[0][i + 1],
-                                        activation=self.activation, device=device).to(device))
+                                        activation=self.activation))
             input_size = filters_enc[0][i + 1]
 
         self.conv = nn.ModuleList(self.conv)
@@ -88,24 +98,24 @@ class SpiralAutoencoder(nn.Module):
         for i in range(len(spiral_sizes) - 1):
             if i != len(spiral_sizes) - 2:
                 self.dconv.append(SpiralConv(input_size, spiral_sizes[-2 - i], filters_dec[0][i + 1],
-                                             activation=self.activation, device=device).to(device))
+                                             activation=self.activation))
                 input_size = filters_dec[0][i + 1]
 
                 if filters_dec[1][i + 1]:
                     self.dconv.append(SpiralConv(input_size, spiral_sizes[-2 - i], filters_dec[1][i + 1],
-                                                 activation=self.activation, device=device).to(device))
+                                                 activation=self.activation))
                     input_size = filters_dec[1][i + 1]
             else:
                 if filters_dec[1][i + 1]:
                     self.dconv.append(SpiralConv(input_size, spiral_sizes[-2 - i], filters_dec[0][i + 1],
-                                                 activation=self.activation, device=device).to(device))
+                                                 activation=self.activation))
                     input_size = filters_dec[0][i + 1]
                     self.dconv.append(SpiralConv(input_size, spiral_sizes[-2 - i], filters_dec[1][i + 1],
-                                                 activation='identity', device=device).to(device))
+                                                 activation='identity'))
                     input_size = filters_dec[1][i + 1]
                 else:
                     self.dconv.append(SpiralConv(input_size, spiral_sizes[-2 - i], filters_dec[0][i + 1],
-                                                 activation='identity', device=device).to(device))
+                                                 activation='identity'))
                     input_size = filters_dec[0][i + 1]
 
         self.dconv = nn.ModuleList(self.dconv)

@@ -4,8 +4,14 @@ import torch
 from tqdm import tqdm
 
 
+def dict_to_device(input_dict, device):
+    res = {}
+    for key, value in input_dict.items():
+        res[key] = value.to(device)
+    return res
+
+
 def train_autoencoder_dataloader(dataloader_train, dataloader_val,
-                                 dataset_train, dataset_val,
                                  device, model, optim, loss_fn,
                                  bsize, start_epoch, n_epochs, eval_freq, scheduler=None,
                                  writer=None, save_recons=True, shapedata=None,
@@ -18,16 +24,15 @@ def train_autoencoder_dataloader(dataloader_train, dataloader_val,
         tloss = []
         for b, sample_dict in enumerate(tqdm(dataloader_train)):
             optim.zero_grad()
+            sample_dict = dict_to_device(sample_dict, device)
 
-            tx = sample_dict['points'].to(device)
-            ids = sample_dict['ids']
+            tx = sample_dict['points']
             cur_bsize = tx.shape[0]
 
             tx_dict = model(tx)
 
-            loss, loss_exp, loss_exp_cycle, loss_id, loss_id_cycle, loss_ori = compute_overall_loss(dataset_train, ids,
-                                                                                                    loss_fn, tx,
-                                                                                                    tx_dict)
+            loss, loss_exp, loss_exp_cycle, loss_id, loss_id_cycle, loss_ori = compute_overall_loss(sample_dict,
+                                                                                                    loss_fn, tx_dict)
 
             loss.backward()
             optim.step()
@@ -48,14 +53,13 @@ def train_autoencoder_dataloader(dataloader_train, dataloader_val,
         vloss = []
         with torch.no_grad():
             for b, sample_dict in enumerate(tqdm(dataloader_val)):
-                tx = sample_dict['points'].to(device)
-                ids = sample_dict['ids']
+                sample_dict = dict_to_device(sample_dict, device)
+                tx = sample_dict['points']
                 cur_bsize = tx.shape[0]
 
                 tx_dict = model(tx)
-                loss, loss_exp, loss_exp_cycle, loss_id, loss_id_cycle, loss_ori = compute_overall_loss(dataset_val,
-                                                                                                        ids,
-                                                                                                        loss_fn, tx,
+                loss, loss_exp, loss_exp_cycle, loss_id, loss_id_cycle, loss_ori = compute_overall_loss(sample_dict,
+                                                                                                        loss_fn,
                                                                                                         tx_dict)
 
                 vloss.append(cur_bsize * loss.item())
@@ -103,16 +107,16 @@ def train_autoencoder_dataloader(dataloader_train, dataloader_val,
     print('~FIN~')
 
 
-def compute_overall_loss(dataset, ids, loss_fn, tx, tx_dict):
+def compute_overall_loss(sample_dict, loss_fn, tx_dict):
     ori_rec = tx_dict['ori_rec']  # should be same as tx
     id_rec = tx_dict['id_rec']  # should be same as
     exp_rec = tx_dict['exp_rec']
     id_cycle_rec = tx_dict['id_cycle_rec']
     exp_cycle_rec = tx_dict['exp_cycle_rec']
-    ori_targets = tx
-    id_targets = dataset.get_id_targets(ids)
-    exp_targets = dataset.get_exp_targets(ids)
-    id_cycle_targets = exp_cycle_targets = dataset.get_mean_targets(ids)
+    ori_targets = sample_dict['points']
+    id_targets = sample_dict['id_targets']
+    exp_targets = sample_dict['exp_targets']
+    id_cycle_targets = exp_cycle_targets = sample_dict['stacked_mean']
     loss_ori = loss_fn(ori_rec, ori_targets)
     loss_id = loss_fn(id_rec, id_targets)
     loss_exp = loss_fn(exp_rec, exp_targets)

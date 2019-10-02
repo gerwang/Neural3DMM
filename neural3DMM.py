@@ -74,7 +74,8 @@ args = {'generative_model': generative_model,
         'reference_mesh_file': reference_mesh_file, 'downsample_directory': downsample_directory,
         'checkpoint_file': 'checkpoint',
         'seed': 2, 'loss': 'l1',
-        'batch_size': 8, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
+        'batch_size': 4, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
+        ''
         'filter_sizes_enc': filter_sizes_enc, 'filter_sizes_dec': filter_sizes_dec,
         'id_latent_size': 50, 'exp_latent_size': 25,
         'ds_factors': ds_factors, 'step_sizes': step_sizes, 'dilation': dilation,
@@ -292,7 +293,6 @@ if args['mode'] == 'train':
 
     if args['generative_model'] == 'autoencoder':
         train_autoencoder_dataloader(dataloader_train, dataloader_test,
-                                     dataset_train, dataset_test,
                                      device, model, optim, loss_fn,
                                      bsize=args['batch_size'],
                                      start_epoch=start_epoch,
