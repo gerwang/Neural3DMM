@@ -88,7 +88,8 @@ args = {'generative_model': generative_model,
 
         'mode': 'train', 'shuffle': True, 'normalization': True,
         'save_mesh': False,
-        'n_id_train': 140, 'n_id_test': 10, 'n_exp': 47}
+        'n_id_train': 140, 'n_id_test': 10, 'n_exp': 47,
+        'lambda_kld': 1e-5}
 
 args['results_folder'] = os.path.join(args['results_folder'],
                                       'id_{}_exp_{}'.format(args['id_latent_size'], args['exp_latent_size']))
@@ -303,6 +304,7 @@ if args['mode'] == 'train':
                                      start_epoch=start_epoch,
                                      n_epochs=args['num_epochs'],
                                      eval_freq=args['eval_frequency'],
+                                     lambda_kld=args['lambda_kld'],
                                      scheduler=scheduler,
                                      writer=writer,
                                      save_recons=True,

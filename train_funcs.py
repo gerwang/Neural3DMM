@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 
+from models import kl_divergence
+
 
 def dict_to_device(input_dict, device):
     res = {}
@@ -21,7 +23,9 @@ def get_real_model(model):
 
 def train_autoencoder_dataloader(dataloader_train, dataloader_val,
                                  device, model, optim, loss_fn,
-                                 bsize, total_bsize, start_epoch, n_epochs, eval_freq, scheduler=None,
+                                 bsize, total_bsize, start_epoch, n_epochs, eval_freq,
+                                 lambda_kld,
+                                 scheduler=None,
                                  writer=None, save_recons=True, shapedata=None,
                                  metadata_dir=None, samples_dir=None, checkpoint_path=None):
     total_steps = start_epoch * len(dataloader_train)
@@ -43,8 +47,15 @@ def train_autoencoder_dataloader(dataloader_train, dataloader_val,
 
             tx_dict = model(tx)
 
-            loss, loss_exp, loss_exp_cycle, loss_id, loss_id_cycle, loss_ori = compute_overall_loss(sample_dict,
-                                                                                                    loss_fn, tx_dict)
+            data_loss, loss_exp, loss_exp_cycle, loss_id, loss_id_cycle, loss_ori = compute_overall_loss(sample_dict,
+                                                                                                         loss_fn,
+                                                                                                         tx_dict)
+
+            mu = tx_dict['mu']
+            logvar = tx_dict['logvar']
+            kl_loss = kl_divergence(mu, logvar)
+
+            loss = data_loss + lambda_kld * kl_loss
 
             loss.backward()
             cur_cnt += cur_bsize
@@ -54,18 +65,24 @@ def train_autoencoder_dataloader(dataloader_train, dataloader_val,
 
             tloss.append(cur_bsize * loss.item())
             if writer and total_steps % eval_freq == 0:
-                writer.add_scalar('loss/loss/data_loss', loss.item(), total_steps)
+                writer.add_scalar('loss/loss/data_loss', data_loss.item(), total_steps)
                 writer.add_scalar('loss/loss/loss_ori', loss_ori.item(), total_steps)
                 writer.add_scalar('loss/loss/loss_id', loss_id.item(), total_steps)
                 writer.add_scalar('loss/loss/loss_exp', loss_exp.item(), total_steps)
                 writer.add_scalar('loss/loss/loss_id_cycle', loss_id_cycle.item(), total_steps)
                 writer.add_scalar('loss/loss/loss_exp_cycle', loss_exp_cycle.item(), total_steps)
+                writer.add_scalar('loss/loss/kl_loss', kl_loss.item(), total_steps)
                 writer.add_scalar('training/learning_rate', optim.param_groups[0]['lr'], total_steps)
             total_steps += 1
 
         # validate
         model.eval()
         vloss = []
+        sum_exp = 0
+        sum_exp_cycle = 0
+        sum_id = 0
+        sum_id_cycle = 0
+        sum_ori = 0
         with torch.no_grad():
             for b, sample_dict in enumerate(tqdm(dataloader_val)):
                 sample_dict = dict_to_device(sample_dict, device)
@@ -73,20 +90,32 @@ def train_autoencoder_dataloader(dataloader_train, dataloader_val,
                 cur_bsize = tx.shape[0]
 
                 tx_dict = model(tx)
-                loss, loss_exp, loss_exp_cycle, loss_id, loss_id_cycle, loss_ori = compute_overall_loss(sample_dict,
-                                                                                                        loss_fn,
-                                                                                                        tx_dict)
+                loss, loss_exp, loss_exp_cycle, loss_id, loss_id_cycle, loss_ori = compute_overall_loss(
+                    sample_dict,
+                    loss_fn,
+                    tx_dict)
 
                 vloss.append(cur_bsize * loss.item())
+                sum_exp += cur_bsize * loss_exp.item()
+                sum_id += cur_bsize * loss_id.item()
+                sum_exp_cycle += cur_bsize * loss_exp_cycle.item()
+                sum_id_cycle += cur_bsize * loss_id_cycle.item()
+                sum_ori += cur_bsize * loss_ori.item()
 
         if scheduler:
             scheduler.step()
 
-        epoch_tloss = sum(tloss) / float(len(dataloader_train.dataset))
+        n_sample = float(len(dataloader_train.dataset))
+        epoch_tloss = sum(tloss) / n_sample
         writer.add_scalar('avg_epoch_train_loss', epoch_tloss, epoch)
         if len(dataloader_val.dataset) > 0:
             epoch_vloss = sum(vloss) / float(len(dataloader_val.dataset))
             writer.add_scalar('avg_epoch_valid_loss', epoch_vloss, epoch)
+            writer.add_scalar('val_id_loss', sum_id / n_sample, epoch)
+            writer.add_scalar('val_exp_loss', sum_exp / n_sample, epoch)
+            writer.add_scalar('val_id_cycle_loss', sum_id_cycle / n_sample, epoch)
+            writer.add_scalar('val_exp_cycle_loss', sum_exp_cycle / n_sample, epoch)
+            writer.add_scalar('val_ori_loss', sum_ori / n_sample, epoch)
             print('epoch {0} | tr {1} | val {2}'.format(epoch, epoch_tloss, epoch_vloss))
         else:
             print('epoch {0} | tr {1} '.format(epoch, epoch_tloss))

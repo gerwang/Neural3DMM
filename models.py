@@ -2,6 +2,16 @@ import torch
 import torch.nn as nn
 
 
+def reparameterize(mu, logvar):
+    std = torch.exp(0.5 * logvar)
+    eps = torch.randn_like(std)
+    return mu + eps * std
+
+
+def kl_divergence(mu, logvar):
+    return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+
+
 class SpiralConv(nn.Module):
     def __init__(self, in_c, spiral_size, out_c, activation='elu', bias=True):
         super(SpiralConv, self).__init__()
@@ -96,7 +106,8 @@ class SpiralAutoencoder(nn.Module):
 
         self.conv = nn.ModuleList(self.conv)
 
-        self.fc_latent_enc = nn.Linear((sizes[-1] + 1) * input_size, self.latent_size)
+        self.fc_mu_enc = nn.Linear((sizes[-1] + 1) * input_size, self.latent_size)
+        self.fc_logvar_enc = nn.Linear((sizes[-1] + 1) * input_size, self.latent_size)
         self.fc_latent_dec = nn.Linear(self.latent_size, (sizes[-1] + 1) * filters_dec[0][0])
 
         self.dconv = []
@@ -128,9 +139,9 @@ class SpiralAutoencoder(nn.Module):
 
     def encode(self, x):
         bsize = x.size(0)
-        #S = self.spirals
+        # S = self.spirals
         S = FakeArray(self, 'spirals', len(self.spirals))
-        #D = self.D
+        # D = self.D
         D = FakeArray(self, 'D', len(self.D))
 
         j = 0
@@ -142,13 +153,16 @@ class SpiralAutoencoder(nn.Module):
                 j += 1
             x = torch.matmul(D[i], x)
         x = x.view(bsize, -1)
-        return self.fc_latent_enc(x)
+        mu = self.fc_mu_enc(x)
+        logvar = self.fc_logvar_enc(x)
+        z = reparameterize(mu, logvar)
+        return z, mu, logvar
 
     def decode(self, z):
         bsize = z.size(0)
-        #S = self.spirals
+        # S = self.spirals
         S = FakeArray(self, 'spirals', len(self.spirals))
-        #U = self.U
+        # U = self.U
         U = FakeArray(self, 'U', len(self.U))
 
         x = self.fc_latent_dec(z)
@@ -170,7 +184,7 @@ class SpiralAutoencoder(nn.Module):
 
     def forward(self, x):
         bsize = x.size(0)
-        z = self.encode(x)
+        z, mu, logvar = self.encode(x)
 
         id_z, exp_z = self.split_id_exp(z)
 
@@ -184,8 +198,8 @@ class SpiralAutoencoder(nn.Module):
         id_rec = self.decode(id_only_z)
         exp_rec = self.decode(exp_only_z)
 
-        id_cycle_z = self.encode(id_rec)
-        exp_cycle_z = self.encode(exp_rec)
+        id_cycle_z, _, _ = self.encode(id_rec)
+        exp_cycle_z, _, _ = self.encode(exp_rec)
 
         id_cycle_id_z, id_cycle_exp_z = self.split_id_exp(id_cycle_z)
         exp_cycle_id_z, exp_cycle_exp_z = self.split_id_exp(exp_cycle_z)
@@ -201,6 +215,8 @@ class SpiralAutoencoder(nn.Module):
             'id_rec': id_rec,
             'exp_rec': exp_rec,
             'id_cycle_rec': id_cycle_rec,
-            'exp_cycle_rec': exp_cycle_rec
+            'exp_cycle_rec': exp_cycle_rec,
+            'mu': mu,
+            'logvar': logvar
         }
         # I feel the routine is over-complex: We KNOW mean's id latent and exp latent
