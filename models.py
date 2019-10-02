@@ -47,10 +47,16 @@ class SpiralConv(nn.Module):
 
 
 class FakeArray(object):
-    def __init__(self, master, n, template):
+    def __init__(self, master, name, buffer_list):
         self.master = master
-        self.n = n
-        self.template = template
+        self.n = len(buffer_list)
+        self.name = name
+        self.template = name + '_%d'
+        for i in range(self.n):
+            self.master.register_buffer(self.template % i, buffer_list[i])
+
+    def __len__(self):
+        return self.n
 
     def __getitem__(self, x):
         x %= self.n
@@ -61,19 +67,18 @@ class FakeArray(object):
 
 class SpiralAutoencoder(nn.Module):
     def __init__(self, filters_enc, filters_dec, id_latent_size, exp_latent_size, sizes, spiral_sizes,
-                 spirals, D, U, device, activation='elu'):
+                 spirals, D, U, activation='elu'):
         super(SpiralAutoencoder, self).__init__()
         self.id_latent_size = id_latent_size
         self.exp_latent_size = exp_latent_size
         self.latent_size = id_latent_size + exp_latent_size
         self.sizes = sizes
-        self.spirals = spirals
         self.filters_enc = filters_enc
         self.filters_dec = filters_dec
         self.spiral_sizes = spiral_sizes
-        self.D = D
-        self.U = U
-        self.device = device
+        self.spirals = FakeArray(self, 'spirals', spirals)
+        self.D = FakeArray(self, 'D', D)
+        self.U = FakeArray(self, 'U', U)
         self.activation = activation
 
         self.conv = []
