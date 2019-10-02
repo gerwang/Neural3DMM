@@ -21,10 +21,11 @@ from torch.utils.data import DataLoader
 
 from spiral_utils import get_adj_trigs, generate_spirals
 from models import SpiralAutoencoder
-from train_funcs import train_autoencoder_dataloader
+from train_funcs import train_autoencoder_dataloader, get_real_model
 from test_funcs import test_autoencoder_dataloader
 
 import torch
+import torch.nn as nn
 from tensorboardX import SummaryWriter
 
 from sklearn.metrics.pairwise import euclidean_distances
@@ -46,7 +47,8 @@ dataset = 'FW_fusion_10000'
 name = 'base'
 
 GPU = True
-device_idx = select_GPUs(1, 0.7, 0.3)[0]
+gpu_ids = select_GPUs(1, 0.7, 0.3)
+device_idx = gpu_ids[0]
 torch.cuda.get_device_name(device_idx)
 
 args = {}
@@ -74,8 +76,7 @@ args = {'generative_model': generative_model,
         'reference_mesh_file': reference_mesh_file, 'downsample_directory': downsample_directory,
         'checkpoint_file': 'checkpoint',
         'seed': 2, 'loss': 'l1',
-        'batch_size': 4, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
-        'total_batch_size': 16,
+        'batch_size': 4, 'total_batch_size': 16, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
         'filter_sizes_enc': filter_sizes_enc, 'filter_sizes_dec': filter_sizes_dec,
         'id_latent_size': 50, 'exp_latent_size': 25,
         'ds_factors': ds_factors, 'step_sizes': step_sizes, 'dilation': dilation,
@@ -234,25 +235,28 @@ tU = [torch.from_numpy(s).float().to(device) for s in bU]
 # Building model, optimizer, and loss function
 
 dataset_train = DeviceDataset(np_data=shapedata.vertices_train, np_tags=shapedata.tags_train,
-                              shapedata=shapedata, device=device, n_id=args['n_id_train'],
+                              shapedata=shapedata, device=device, n_id=args['n_id_train'],  # fixme
                               n_exp=args['n_exp'])
 
-dataloader_train = DataLoader(dataset_train, batch_size=args['batch_size'], shuffle=args['shuffle'], num_workers=0)
+dataloader_train = DataLoader(dataset_train, batch_size=args['batch_size'], shuffle=args['shuffle'],
+                              num_workers=args['num_workers'])
 
 dataset_test = DeviceDataset(np_data=shapedata.vertices_test, np_tags=shapedata.tags_test,
-                             shapedata=shapedata, device=device, n_id=args['n_id_test'], n_exp=args['n_exp'])
+                             shapedata=shapedata, device=device, n_id=args['n_id_test'],
+                             n_exp=args['n_exp'])  # fixme
 
-dataloader_test = DataLoader(dataset_test, batch_size=args['batch_size'], shuffle=False, num_workers=0)
+dataloader_test = DataLoader(dataset_test, batch_size=args['batch_size'], shuffle=False,
+                             num_workers=args['num_workers'])
 
 if 'autoencoder' in args['generative_model']:
-    model = SpiralAutoencoder(filters_enc=args['filter_sizes_enc'],
-                              filters_dec=args['filter_sizes_dec'],
-                              id_latent_size=args['id_latent_size'],
-                              exp_latent_size=args['exp_latent_size'],
-                              sizes=sizes,
-                              spiral_sizes=spiral_sizes,
-                              spirals=tspirals,
-                              D=tD, U=tU, device=device).to(device)
+    model = nn.DataParallel(SpiralAutoencoder(filters_enc=args['filter_sizes_enc'],
+                                              filters_dec=args['filter_sizes_dec'],
+                                              id_latent_size=args['id_latent_size'],
+                                              exp_latent_size=args['exp_latent_size'],
+                                              sizes=sizes,
+                                              spiral_sizes=spiral_sizes,
+                                              spirals=tspirals,
+                                              D=tD, U=tU), device_ids=gpu_ids, output_device=device)
 
 optim = torch.optim.Adam(model.parameters(), lr=args['lr'], weight_decay=args['regularization'])
 if args['scheduler']:
@@ -284,7 +288,7 @@ if args['mode'] == 'train':
         checkpoint_dict = torch.load(os.path.join(checkpoint_path, args['checkpoint_file'] + '.pth.tar'),
                                      map_location=device)
         start_epoch = checkpoint_dict['epoch'] + 1
-        model.load_state_dict(checkpoint_dict['autoencoder_state_dict'])
+        get_real_model(model).load_state_dict(checkpoint_dict['autoencoder_state_dict'])
         optim.load_state_dict(checkpoint_dict['optimizer_state_dict'])
         scheduler.load_state_dict(checkpoint_dict['scheduler_state_dict'])
         print('Resuming from epoch %s' % (str(start_epoch)))
@@ -309,7 +313,7 @@ if args['mode'] == 'test':
     print('loading checkpoint from file %s' % (os.path.join(checkpoint_path, args['checkpoint_file'] + '.pth.tar')))
     checkpoint_dict = torch.load(os.path.join(checkpoint_path, args['checkpoint_file'] + '.pth.tar'),
                                  map_location=device)
-    model.load_state_dict(checkpoint_dict['autoencoder_state_dict'])
+    get_real_model(model).load_state_dict(checkpoint_dict['autoencoder_state_dict'])
 
     predictions, norm_l1_loss, l2_loss = test_autoencoder_dataloader(device, model, dataloader_test,
                                                                      shapedata, mm_constant=100)  # for FW

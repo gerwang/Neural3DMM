@@ -1,6 +1,7 @@
 import os
 
 import torch
+import torch.nn as nn
 from tqdm import tqdm
 
 
@@ -9,6 +10,13 @@ def dict_to_device(input_dict, device):
     for key, value in input_dict.items():
         res[key] = value.to(device)
     return res
+
+
+def get_real_model(model):
+    if isinstance(model, nn.DataParallel):
+        return model.module
+    else:
+        return model
 
 
 def train_autoencoder_dataloader(dataloader_train, dataloader_val,
@@ -85,14 +93,14 @@ def train_autoencoder_dataloader(dataloader_train, dataloader_val,
         model = model.cpu()
 
         torch.save({'epoch': epoch,
-                    'autoencoder_state_dict': model.state_dict(),
+                    'autoencoder_state_dict': get_real_model(model).state_dict(),
                     'optimizer_state_dict': optim.state_dict(),
                     'scheduler_state_dict': scheduler.state_dict(),
                     }, os.path.join(metadata_dir, checkpoint_path + '.pth.tar'))
 
         if epoch % 10 == 0:
             torch.save({'epoch': epoch,
-                        'autoencoder_state_dict': model.state_dict(),
+                        'autoencoder_state_dict': get_real_model(model).state_dict(),
                         'optimizer_state_dict': optim.state_dict(),
                         'scheduler_state_dict': scheduler.state_dict(),
                         }, os.path.join(metadata_dir, checkpoint_path + '%s.pth.tar' % (epoch)))
