@@ -80,7 +80,7 @@ else:
 reference_points = [[5930]]  # [[3567, 4051, 4597]]  # used for COMA with 3 disconnected components# [[414]]
 
 args = {'generative_model': generative_model,
-        'name': name, 'data': os.path.join(root_dir, dataset, 'preprocessed', name),
+        'name': name, 'data': os.path.join(root_dir, dataset),
         'results_folder': os.path.join(root_dir, dataset, 'results/spirals_' + generative_model),
         'reference_mesh_file': reference_mesh_file, 'downsample_directory': downsample_directory,
         'checkpoint_file': 'checkpoint',
