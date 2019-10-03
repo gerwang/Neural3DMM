@@ -1,4 +1,5 @@
 import copy
+import getpass
 import json
 import os
 import pickle
@@ -28,6 +29,14 @@ import torch
 from tensorboardX import SummaryWriter
 
 from sklearn.metrics.pairwise import euclidean_distances
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--nz', type=int, help='latent space')
+parser.add_argument('--name', help='runtime name')
+parser.add_argument('--dataset', help='dataset name')
+
+opt = parser.parse_args()
 
 
 def is_py3():
@@ -40,10 +49,12 @@ if is_py3():
     meshpackage = 'trimesh'
 else:
     meshpackage = 'mpi-mesh'  # 'mpi-mesh', 'trimesh'
-root_dir = '/run/media/gerw/HDD/data/CoMA/data'
-
-dataset = 'FW_aligned_10000'
-name = 'paper_arch'
+if getpass.getuser() == 'gerw':
+    root_dir = '/run/media/gerw/HDD/data/CoMA/data'
+elif getpass.getuser() == 'jingwang':
+    root_dir = '/home/jingwang/Data/data/COMA_result'
+dataset = opt.dataset
+name = opt.name
 
 GPU = True
 device_idx = select_GPUs(1, 0.7, 0.3)[0]
@@ -76,7 +87,7 @@ args = {'generative_model': generative_model,
         'seed': 2, 'loss': 'l1',
         'batch_size': 16, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
         'filter_sizes_enc': filter_sizes_enc, 'filter_sizes_dec': filter_sizes_dec,
-        'nz': 8,
+        'nz': opt.nz,
         'ds_factors': ds_factors, 'step_sizes': step_sizes, 'dilation': dilation,
 
         'lr': 1e-3,
