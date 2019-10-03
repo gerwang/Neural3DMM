@@ -32,9 +32,9 @@ from sklearn.metrics.pairwise import euclidean_distances
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--nz', type=int, help='latent space')
-parser.add_argument('--name', help='runtime name')
-parser.add_argument('--dataset', help='dataset name')
+parser.add_argument('--nz', type=int, default=50, help='latent space')
+parser.add_argument('--name', default='paper_arch_vae', help='runtime name')
+parser.add_argument('--dataset', default='FW_aligned_10000', help='dataset name')
 
 opt = parser.parse_args()
 
@@ -96,7 +96,8 @@ args = {'generative_model': generative_model,
         'resume': False,
 
         'mode': 'train', 'shuffle': True, 'nVal': 100, 'normalization': True,
-        'save_mesh': False}
+        'save_mesh': False,
+        'lambda_var': 1e-5}
 
 args['results_folder'] = os.path.join(args['results_folder'], 'latent_' + str(args['nz']))
 
@@ -300,6 +301,7 @@ if args['mode'] == 'train':
                                      start_epoch=start_epoch,
                                      n_epochs=args['num_epochs'],
                                      eval_freq=args['eval_frequency'],
+                                     lambda_var=args['lambda_var'],
                                      scheduler=scheduler,
                                      writer=writer,
                                      save_recons=True,
