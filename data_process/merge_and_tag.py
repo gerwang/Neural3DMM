@@ -1,5 +1,6 @@
-import numpy as np
 import os
+
+import numpy as np
 
 input_paths = [
     '/home/gerw/Documents/git-task/coma/data/FW_fusion_10000/mean_data.npy',
@@ -30,6 +31,7 @@ cnt = 0
 
 for j in range(n_exp):
     tag[cnt] = 0, j
+    cnt += 1  # prevbug: ftl
 
 # labeled data
 

@@ -1,4 +1,5 @@
 import copy
+import getpass
 import json
 import os
 import pickle
@@ -41,13 +42,16 @@ if is_py3():
     meshpackage = 'trimesh'
 else:
     meshpackage = 'mpi-mesh'  # 'mpi-mesh', 'trimesh'
-root_dir = '/mnt/Data2/jingwang/data/COMA_result'
+if getpass.getuser() == 'gerw':
+    root_dir = '/run/media/gerw/HDD/data/CoMA/data'
+elif getpass.getuser() == 'jingwang':
+    root_dir = '/home/jingwang/Data/data/COMA_result'
 
 dataset = 'FW_fusion_10000'
 name = 'base'
 
 GPU = True
-gpu_ids = select_GPUs(4, 0.7, 0.3)
+gpu_ids = select_GPUs(3, 0.7, 0.3)
 device_idx = gpu_ids[0]
 torch.cuda.get_device_name(device_idx)
 
@@ -76,12 +80,12 @@ args = {'generative_model': generative_model,
         'reference_mesh_file': reference_mesh_file, 'downsample_directory': downsample_directory,
         'checkpoint_file': 'checkpoint',
         'seed': 2, 'loss': 'l1',
-        'batch_size': 36, 'total_batch_size': 36, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
+        'batch_size': 27, 'total_batch_size': 27, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
         'filter_sizes_enc': filter_sizes_enc, 'filter_sizes_dec': filter_sizes_dec,
         'id_latent_size': 50, 'exp_latent_size': 25,
         'ds_factors': ds_factors, 'step_sizes': step_sizes, 'dilation': dilation,
 
-        'lr': 2.25e-3,
+        'lr': 1.6875e-3,
         'regularization': 5e-5,
         'scheduler': True, 'decay_rate': 0.99, 'decay_steps': 1,
         'resume': False,
@@ -249,6 +253,25 @@ dataset_test = DeviceDataset(np_data=shapedata.vertices_test, np_tags=shapedata.
 dataloader_test = DataLoader(dataset_test, batch_size=args['batch_size'], shuffle=False,
                              num_workers=args['num_workers'], pin_memory=True)
 
+'''
+ref_mesh = om.read_trimesh(reference_mesh_file)
+
+mesh1 = o3d.geometry.TriangleMesh()
+mesh1.triangles = o3d.utility.Vector3iVector(ref_mesh.face_vertex_indices())
+mesh1.vertices = o3d.utility.Vector3dVector(ref_mesh.points())
+mesh1.paint_uniform_color([1, 0, 0])
+mesh2 = copy.deepcopy(mesh1)
+mesh2.paint_uniform_color([0, 1, 0])
+
+for sample_dict in dataset_train:
+    mesh1.vertices = o3d.utility.Vector3dVector(shapedata.mean + shapedata.std * sample_dict['points'][:-1].numpy())
+    mesh2.vertices = o3d.utility.Vector3dVector(
+        shapedata.mean + shapedata.std * sample_dict['id_targets'][:-1].numpy())
+    mesh1.compute_vertex_normals()
+    mesh2.compute_vertex_normals()
+    o3d.visualization.draw_geometries([mesh1, mesh2])
+'''
+
 if 'autoencoder' in args['generative_model']:
     model = nn.DataParallel(SpiralAutoencoder(filters_enc=args['filter_sizes_enc'],
                                               filters_dec=args['filter_sizes_dec'],
@@ -317,9 +340,10 @@ if args['mode'] == 'test':
                                  map_location=device)
     get_real_model(model).load_state_dict(checkpoint_dict['autoencoder_state_dict'])
 
-    predictions, norm_l1_loss, l2_loss = test_autoencoder_dataloader(device, model, dataloader_test,
-                                                                     shapedata, mm_constant=100)  # for FW
-    np.save(os.path.join(prediction_path, 'predictions'), predictions)
+    total_dict, norm_l1_loss, l2_loss = test_autoencoder_dataloader(device, model, dataloader_test,
+                                                                    shapedata, mm_constant=100)  # for FW
+    for key, value in total_dict.items():
+        np.save(os.path.join(prediction_path, key), value)
 
     print('autoencoder: normalized loss', norm_l1_loss)
 

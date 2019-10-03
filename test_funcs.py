@@ -21,6 +21,9 @@ def test_autoencoder_dataloader(device, model, dataloader_test, shapedata, mm_co
         if dataloader_test.dataset.dummy_node:
             x = x[:, :-1]
         x = x.detach().cpu()
+        return x
+
+    def get_denormalized(x):
         x = x * shapedata_std + shapedata_mean
         return x
 
@@ -43,9 +46,15 @@ def test_autoencoder_dataloader(device, model, dataloader_test, shapedata, mm_co
             tx_dict = model(tx)
             tx_dict = get_dict_recon(tx_dict)
             x_recon = tx_dict['ori_rec']
-            x = tx[:, :-1]
+            x = tx[:, :-1].cpu()
+
             total_dict = concat_dict(total_dict, tx_dict)
+
             l1_loss += torch.mean(torch.abs(x_recon - x)) * x.shape[0] / float(len(dataloader_test.dataset))
+
+            x_recon = get_denormalized(x_recon)
+            x = get_denormalized(x)
+
             l2_loss += mm_constant * torch.mean(torch.sqrt(torch.sum((x_recon - x) ** 2, dim=2))) * x.shape[0] / float(
                 len(dataloader_test.dataset))
 

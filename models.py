@@ -155,7 +155,10 @@ class SpiralAutoencoder(nn.Module):
         x = x.view(bsize, -1)
         mu = self.fc_mu_enc(x)
         logvar = self.fc_logvar_enc(x)
-        z = reparameterize(mu, logvar)
+        if self.training:
+            z = reparameterize(mu, logvar)
+        else:
+            z = mu
         return z, mu, logvar
 
     def decode(self, z):
