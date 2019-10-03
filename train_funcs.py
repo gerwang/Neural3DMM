@@ -111,11 +111,11 @@ def train_autoencoder_dataloader(dataloader_train, dataloader_val,
         if len(dataloader_val.dataset) > 0:
             epoch_vloss = sum(vloss) / float(len(dataloader_val.dataset))
             writer.add_scalar('avg_epoch_valid_loss', epoch_vloss, epoch)
-            writer.add_scalar('val_id_loss', sum_id / n_sample, epoch)
-            writer.add_scalar('val_exp_loss', sum_exp / n_sample, epoch)
-            writer.add_scalar('val_id_cycle_loss', sum_id_cycle / n_sample, epoch)
-            writer.add_scalar('val_exp_cycle_loss', sum_exp_cycle / n_sample, epoch)
-            writer.add_scalar('val_ori_loss', sum_ori / n_sample, epoch)
+            writer.add_scalar('val/val_id_loss', sum_id / n_sample, epoch)
+            writer.add_scalar('val/val_exp_loss', sum_exp / n_sample, epoch)
+            writer.add_scalar('val/val_id_cycle_loss', sum_id_cycle / n_sample, epoch)
+            writer.add_scalar('val/val_exp_cycle_loss', sum_exp_cycle / n_sample, epoch)
+            writer.add_scalar('val/val_ori_loss', sum_ori / n_sample, epoch)
             print('epoch {0} | tr {1} | val {2}'.format(epoch, epoch_tloss, epoch_vloss))
         else:
             print('epoch {0} | tr {1} '.format(epoch, epoch_tloss))
