@@ -53,6 +53,7 @@ name = 'base'
 GPU = True
 gpu_ids = select_GPUs(3, 0.7, 0.3)
 device_idx = gpu_ids[0]
+print(gpu_ids)
 torch.cuda.get_device_name(device_idx)
 
 args = {}
