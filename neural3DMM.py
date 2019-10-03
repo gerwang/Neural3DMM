@@ -17,7 +17,7 @@ import mesh_sampling
 import trimesh
 from shape_data import ShapeData
 
-from autoencoder_dataset import DeviceDataset
+from autoencoder_dataset import autoencoder_dataset
 from torch.utils.data import DataLoader
 
 from spiral_utils import get_adj_trigs, generate_spirals
@@ -85,7 +85,7 @@ args = {'generative_model': generative_model,
         'reference_mesh_file': reference_mesh_file, 'downsample_directory': downsample_directory,
         'checkpoint_file': 'checkpoint',
         'seed': 2, 'loss': 'l1',
-        'batch_size': 16, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
+        'batch_size': 16, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 30,
         'filter_sizes_enc': filter_sizes_enc, 'filter_sizes_dec': filter_sizes_dec,
         'nz': opt.nz,
         'ds_factors': ds_factors, 'step_sizes': step_sizes, 'dilation': dilation,
@@ -123,37 +123,21 @@ if not os.path.exists(downsample_directory):
     os.makedirs(downsample_directory)
 
 np.random.seed(args['seed'])
-print("Loading data .. ")
-if not os.path.exists(args['data'] + '/mean.npy') or not os.path.exists(args['data'] + '/std.npy'):
-    shapedata = ShapeData(train_file=args['data'] + '/train.npy',
-                          test_file=args['data'] + '/test.npy',
-                          reference_mesh_file=args['reference_mesh_file'],
-                          normalization=args['normalization'],
-                          already_normalized=False,
-                          meshpackage=meshpackage, load_flag=True)
-    np.save(args['data'] + '/mean.npy', shapedata.mean)
-    np.save(args['data'] + '/std.npy', shapedata.std)
-    if shapedata.normalization:
-        np.save(os.path.join(args['data'], 'train_normalized.npy'), shapedata.vertices_train)
-        np.save(os.path.join(args['data'], 'test_normalized.npy'), shapedata.vertices_test)
-else:
-    train_name = ''
-    test_name = ''
-    if args['normalization']:
-        train_name = 'train_normalized.npy'
-        test_name = 'test_normalized.npy'
-    else:
-        train_name = 'train.npy'
-        test_name = 'test.npy'
-
-    shapedata = ShapeData(train_file=os.path.join(args['data'], train_name),
-                          test_file=os.path.join(args['data'], test_name),
-                          reference_mesh_file=args['reference_mesh_file'],
-                          normalization=args['normalization'],
-                          already_normalized=args['normalization'],
-                          meshpackage=meshpackage, load_flag=True)
-    shapedata.mean = np.load(args['data'] + '/mean.npy')
-    shapedata.std = np.load(args['data'] + '/std.npy')
+train_folder = 'train'
+test_folder = 'test'
+shapedata = ShapeData(train_file=os.path.join(args['data'], train_folder),
+                      test_file=os.path.join(args['data'], test_folder),
+                      reference_mesh_file=args['reference_mesh_file'],
+                      normalization=args['normalization'],
+                      already_normalized=args['normalization'],
+                      meshpackage=meshpackage, load_flag=False)
+shapedata.mean = np.load(args['data'] + '/mean.npy')
+shapedata.std = np.load(args['data'] + '/std.npy')
+meta = json.load(open(os.path.join(args['data'], 'meta.json')))
+shapedata.n_vertex = meta['n_vertex']
+shapedata.n_features = 3
+shapedata.n_train = meta['n_train']
+shapedata.n_test = meta['n_test']
 
 if not os.path.exists(os.path.join(args['downsample_directory'], 'downsampling_matrices.pkl')):
     if shapedata.meshpackage == 'trimesh':
@@ -237,15 +221,17 @@ tU = [torch.from_numpy(s).float().to(device) for s in bU]
 
 # Building model, optimizer, and loss function
 
-dataset_train = DeviceDataset(np_data=shapedata.vertices_train, shapedata=shapedata, device=device)
+dataset_train = autoencoder_dataset(root_dir=shapedata.train_file, n_sample=shapedata.n_train, shapedata=shapedata,
+                                    normalization=args['normalization'])
 
 dataloader_train = DataLoader(dataset_train, batch_size=args['batch_size'], \
-                              shuffle=args['shuffle'], num_workers=args['num_workers'])
+                              shuffle=args['shuffle'], num_workers=args['num_workers'], pin_memory=True)
 
-dataset_test = DeviceDataset(np_data=shapedata.vertices_test, shapedata=shapedata, device=device)
+dataset_test = autoencoder_dataset(root_dir=shapedata.test_file, n_sample=shapedata.n_test, shapedata=shapedata,
+                                   normalization=args['normalization'])
 
 dataloader_test = DataLoader(dataset_test, batch_size=args['batch_size'], \
-                             shuffle=False, num_workers=args['num_workers'])
+                             shuffle=False, num_workers=args['num_workers'], pin_memory=True)
 
 if 'autoencoder' in args['generative_model']:
     model = SpiralAutoencoder(filters_enc=args['filter_sizes_enc'],

@@ -27,6 +27,8 @@ class ShapeData(object):
         self.vertices_test = None
         self.n_vertex = None
         self.n_features = None
+        self.n_train = 0
+        self.n_test = 0
         self.normalization = normalization
         self.already_normalized = already_normalized
         self.meshpackage = meshpackage
