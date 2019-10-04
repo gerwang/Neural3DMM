@@ -35,6 +35,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--nz', type=int, help='latent space')
 parser.add_argument('--name', help='runtime name')
 parser.add_argument('--dataset', help='dataset name')
+parser.add_argument('--resume', action='store_true')
+parser.add_argument('--test', action='store_true')
 
 opt = parser.parse_args()
 
@@ -93,9 +95,9 @@ args = {'generative_model': generative_model,
         'lr': 1e-3,
         'regularization': 5e-5,
         'scheduler': True, 'decay_rate': 0.99, 'decay_steps': 1,
-        'resume': False,
+        'resume': opt.resume,
 
-        'mode': 'train', 'shuffle': True, 'nVal': 100, 'normalization': True,
+        'mode': 'test' if opt.test else 'train', 'shuffle': True, 'nVal': 100, 'normalization': True,
         'save_mesh': False}
 
 args['results_folder'] = os.path.join(args['results_folder'], 'latent_' + str(args['nz']))
