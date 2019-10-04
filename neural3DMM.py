@@ -35,6 +35,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--nz', type=int, default=50, help='latent space')
 parser.add_argument('--name', default='paper_arch_vae', help='runtime name')
 parser.add_argument('--dataset', default='FW_aligned_10000', help='dataset name')
+parser.add_argument('--resume', action='store_true')
+parser.add_argument('--test', action='store_true')
+parser.add_argument('--on_train', action='store_true', help='test on train dataset')
 
 opt = parser.parse_args()
 
@@ -93,10 +96,10 @@ args = {'generative_model': generative_model,
         'lr': 1e-3,
         'regularization': 5e-5,
         'scheduler': True, 'decay_rate': 0.99, 'decay_steps': 1,
-        'resume': False,
+        'resume': opt.resume,
 
-        'mode': 'train', 'shuffle': True, 'nVal': 100, 'normalization': True,
-        'save_mesh': False,
+        'mode': 'test' if opt.test else 'train', 'shuffle': True, 'nVal': 100, 'normalization': True,
+        'save_mesh': False, 'on_train': opt.on_train,
         'lambda_var': 1e-5}
 
 args['results_folder'] = os.path.join(args['results_folder'], 'latent_' + str(args['nz']))
@@ -313,9 +316,13 @@ if args['mode'] == 'test':
     checkpoint_dict = torch.load(os.path.join(checkpoint_path, args['checkpoint_file'] + '.pth.tar'),
                                  map_location=device)
     model.load_state_dict(checkpoint_dict['autoencoder_state_dict'])
+    start_epoch = checkpoint_dict['epoch'] + 1
+    print('Resuming from epoch %s' % (str(start_epoch)))
 
-    predictions, norm_l1_loss, l2_loss = test_autoencoder_dataloader(device, model, dataloader_test,
-                                                                     shapedata, mm_constant=1000)
+    dataloader = dataloader_train if args['on_train'] else dataloader_test
+
+    predictions, norm_l1_loss, l2_loss = test_autoencoder_dataloader(device, model, dataloader,
+                                                                     shapedata, mm_constant=100)
     np.save(os.path.join(prediction_path, 'predictions'), predictions)
 
     print('autoencoder: normalized loss', norm_l1_loss)

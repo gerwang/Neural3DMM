@@ -73,6 +73,7 @@ def train_autoencoder_dataloader(dataloader_train, dataloader_val,
 
                 tx_dict = model(tx)
                 tx_hat = tx_dict['rec']
+                loss = loss_fn(tx, tx_hat)
 
                 if shapedata.normalization:
                     vloss.append(cur_bsize * loss.item())
