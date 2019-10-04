@@ -135,3 +135,4 @@ def train_autoencoder_dataloader(dataloader_train, dataloader_val,
                                       msh, mesh_ind)
 
     print('~FIN~')
+    return epoch_vloss

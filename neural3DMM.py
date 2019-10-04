@@ -38,6 +38,7 @@ parser.add_argument('--dataset', default='FW_aligned_10000', help='dataset name'
 parser.add_argument('--resume', action='store_true')
 parser.add_argument('--test', action='store_true')
 parser.add_argument('--on_train', action='store_true', help='test on train dataset')
+parser.add_argument('--kl', type=float)
 
 opt = parser.parse_args()
 
@@ -88,7 +89,7 @@ args = {'generative_model': generative_model,
         'reference_mesh_file': reference_mesh_file, 'downsample_directory': downsample_directory,
         'checkpoint_file': 'checkpoint',
         'seed': 2, 'loss': 'l1',
-        'batch_size': 16, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
+        'batch_size': 16, 'num_epochs': 50, 'eval_frequency': 200, 'num_workers': 0,
         'filter_sizes_enc': filter_sizes_enc, 'filter_sizes_dec': filter_sizes_dec,
         'nz': opt.nz,
         'ds_factors': ds_factors, 'step_sizes': step_sizes, 'dilation': dilation,
@@ -100,7 +101,7 @@ args = {'generative_model': generative_model,
 
         'mode': 'test' if opt.test else 'train', 'shuffle': True, 'nVal': 100, 'normalization': True,
         'save_mesh': False, 'on_train': opt.on_train,
-        'lambda_var': 1e-5}
+        'lambda_var': opt.kl}
 
 args['results_folder'] = os.path.join(args['results_folder'], 'latent_' + str(args['nz']))
 
@@ -298,19 +299,22 @@ if args['mode'] == 'train':
         start_epoch = 0
 
     if args['generative_model'] == 'autoencoder':
-        train_autoencoder_dataloader(dataloader_train, dataloader_test,
-                                     device, model, optim, loss_fn,
-                                     bsize=args['batch_size'],
-                                     start_epoch=start_epoch,
-                                     n_epochs=args['num_epochs'],
-                                     eval_freq=args['eval_frequency'],
-                                     lambda_var=args['lambda_var'],
-                                     scheduler=scheduler,
-                                     writer=writer,
-                                     save_recons=True,
-                                     shapedata=shapedata,
-                                     metadata_dir=checkpoint_path, samples_dir=samples_path,
-                                     checkpoint_path=args['checkpoint_file'])
+        final_vloss = train_autoencoder_dataloader(dataloader_train, dataloader_test,
+                                                   device, model, optim, loss_fn,
+                                                   bsize=args['batch_size'],
+                                                   start_epoch=start_epoch,
+                                                   n_epochs=args['num_epochs'],
+                                                   eval_freq=args['eval_frequency'],
+                                                   lambda_var=args['lambda_var'],
+                                                   scheduler=scheduler,
+                                                   writer=writer,
+                                                   save_recons=True,
+                                                   shapedata=shapedata,
+                                                   metadata_dir=checkpoint_path, samples_dir=samples_path,
+                                                   checkpoint_path=args['checkpoint_file'])
+        jobj = json.load(open('result.json'))
+        jobj[args['lambda_var']] = final_vloss
+        json.dump(jobj, open('result.json', 'w'))
 if args['mode'] == 'test':
     print('loading checkpoint from file %s' % (os.path.join(checkpoint_path, args['checkpoint_file'] + '.pth.tar')))
     checkpoint_dict = torch.load(os.path.join(checkpoint_path, args['checkpoint_file'] + '.pth.tar'),
