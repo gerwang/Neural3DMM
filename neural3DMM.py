@@ -37,6 +37,7 @@ parser.add_argument('--name', help='runtime name')
 parser.add_argument('--dataset', help='dataset name')
 parser.add_argument('--resume', action='store_true')
 parser.add_argument('--test', action='store_true')
+parser.add_argument('--on_train', action='store_true', help='test on train dataset')
 
 opt = parser.parse_args()
 
@@ -98,7 +99,7 @@ args = {'generative_model': generative_model,
         'resume': opt.resume,
 
         'mode': 'test' if opt.test else 'train', 'shuffle': True, 'nVal': 100, 'normalization': True,
-        'save_mesh': False}
+        'save_mesh': False, 'on_train': opt.on_train}
 
 args['results_folder'] = os.path.join(args['results_folder'], 'latent_' + str(args['nz']))
 
@@ -314,8 +315,10 @@ if args['mode'] == 'test':
                                  map_location=device)
     model.load_state_dict(checkpoint_dict['autoencoder_state_dict'])
 
-    predictions, norm_l1_loss, l2_loss = test_autoencoder_dataloader(device, model, dataloader_test,
-                                                                     shapedata, mm_constant=1000)
+    dataloader = dataloader_train if args['on_train'] else dataloader_test
+
+    predictions, norm_l1_loss, l2_loss = test_autoencoder_dataloader(device, model, dataloader,
+                                                                     shapedata, mm_constant=100)
     np.save(os.path.join(prediction_path, 'predictions'), predictions)
 
     print('autoencoder: normalized loss', norm_l1_loss)
