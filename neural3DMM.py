@@ -38,6 +38,7 @@ parser.add_argument('--dataset', help='dataset name')
 parser.add_argument('--resume', action='store_true')
 parser.add_argument('--test', action='store_true')
 parser.add_argument('--on_train', action='store_true', help='test on train dataset')
+parser.add_argument('--amount', type=int, default=-1, help='-1 means use all, number of training data to use')
 
 opt = parser.parse_args()
 
@@ -99,7 +100,7 @@ args = {'generative_model': generative_model,
         'resume': opt.resume,
 
         'mode': 'test' if opt.test else 'train', 'shuffle': True, 'nVal': 100, 'normalization': True,
-        'save_mesh': False, 'on_train': opt.on_train}
+        'save_mesh': False, 'on_train': opt.on_train, 'amount': opt.amount}
 
 args['results_folder'] = os.path.join(args['results_folder'], 'latent_' + str(args['nz']))
 
@@ -240,7 +241,11 @@ tU = [torch.from_numpy(s).float().to(device) for s in bU]
 
 # Building model, optimizer, and loss function
 
-dataset_train = DeviceDataset(np_data=shapedata.vertices_train, shapedata=shapedata, device=device)
+amount = args['amount']
+if amount == -1:
+    amount = shapedata.vertices_train.shape[0]
+
+dataset_train = DeviceDataset(np_data=shapedata.vertices_train[:amount], shapedata=shapedata, device=device)
 
 dataloader_train = DataLoader(dataset_train, batch_size=args['batch_size'], \
                               shuffle=args['shuffle'], num_workers=args['num_workers'])
