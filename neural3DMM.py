@@ -245,12 +245,12 @@ tU = [torch.from_numpy(s).float().to(device) for s in bU]
 amount = args['amount']
 if amount == -1:
     amount = shapedata.vertices_train.shape[0]
-num_epoches = args['num_epoches']
+num_epochs = args['num_epochs']
 # scale epoch
 reference_amount = 10000
-num_epoches = num_epoches * reference_amount // amount
+num_epochs = num_epochs * reference_amount // amount
 decay_freq = reference_amount // args['batch_size']
-print('actual num_epoches', num_epoches)
+print('actual num_epoches', num_epochs)
 
 dataset_train = DeviceDataset(np_data=shapedata.vertices_train[:amount], shapedata=shapedata, device=device)
 
@@ -270,7 +270,7 @@ def test_pca():
     test_data = shapedata.vertices_test
     pca.fit(train_data.reshape(train_data.shape[0], -1))
     test_recon = pca.inverse_transform(pca.transform(test_data.reshape(test_data.shape[0], -1))).reshape(
-        test_data.reshape[0], -1, 3)
+        test_data.shape[0], -1, 3)
     ori_err = np.mean(np.sqrt(np.sum(((test_recon - test_data) * shapedata.std) ** 2, axis=2)))
     return ori_err * mm_constant
 
@@ -326,7 +326,7 @@ if args['mode'] == 'train':
                                      device, model, optim, loss_fn,
                                      bsize=args['batch_size'],
                                      start_epoch=start_epoch,
-                                     n_epochs=num_epoches,
+                                     n_epochs=num_epochs,
                                      eval_freq=args['eval_frequency'],
                                      decay_freq=decay_freq,
                                      scheduler=scheduler,
