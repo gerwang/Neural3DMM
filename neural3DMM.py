@@ -7,6 +7,7 @@ import sys
 
 import numpy as np
 from easydl.common.gpuutils import select_GPUs
+from sklearn.decomposition import PCA
 
 try:
     from psbody.mesh import Mesh
@@ -244,6 +245,12 @@ tU = [torch.from_numpy(s).float().to(device) for s in bU]
 amount = args['amount']
 if amount == -1:
     amount = shapedata.vertices_train.shape[0]
+num_epoches = args['num_epoches']
+# scale epoch
+reference_amount = 10000
+num_epoches = num_epoches * reference_amount // amount
+decay_freq = reference_amount // args['batch_size']
+print('actual num_epoches', num_epoches)
 
 dataset_train = DeviceDataset(np_data=shapedata.vertices_train[:amount], shapedata=shapedata, device=device)
 
@@ -254,6 +261,19 @@ dataset_test = DeviceDataset(np_data=shapedata.vertices_test, shapedata=shapedat
 
 dataloader_test = DataLoader(dataset_test, batch_size=args['batch_size'], \
                              shuffle=False, num_workers=args['num_workers'])
+
+
+def test_pca():
+    mm_constant = 100
+    pca = PCA(n_components=args['nz'])
+    train_data = shapedata.vertices_train[:amount]  # n x 11510 x 3
+    test_data = shapedata.vertices_test
+    pca.fit(train_data.reshape(train_data.shape[0], -1))
+    test_recon = pca.inverse_transform(pca.transform(test_data.reshape(test_data.shape[0], -1))).reshape(
+        test_data.reshape[0], -1, 3)
+    ori_err = np.mean(np.sqrt(np.sum(((test_recon - test_data) * shapedata.std) ** 2, axis=2)))
+    return ori_err * mm_constant
+
 
 if 'autoencoder' in args['generative_model']:
     model = SpiralAutoencoder(filters_enc=args['filter_sizes_enc'],
@@ -306,14 +326,24 @@ if args['mode'] == 'train':
                                      device, model, optim, loss_fn,
                                      bsize=args['batch_size'],
                                      start_epoch=start_epoch,
-                                     n_epochs=args['num_epochs'],
+                                     n_epochs=num_epoches,
                                      eval_freq=args['eval_frequency'],
+                                     decay_freq=decay_freq,
                                      scheduler=scheduler,
                                      writer=writer,
                                      save_recons=True,
                                      shapedata=shapedata,
                                      metadata_dir=checkpoint_path, samples_dir=samples_path,
                                      checkpoint_path=args['checkpoint_file'])
+
+        predictions, norm_l1_loss, l2_loss = test_autoencoder_dataloader(device, model, dataloader_test,
+                                                                         shapedata, mm_constant=100)
+
+        jobj = json.load(open('result.json'))
+        jobj[amount] = l2_loss
+        jobj['pca' + str(amount)] = test_pca()
+        json.dump(open('result.json', 'w'), jobj)
+
 if args['mode'] == 'test':
     print('loading checkpoint from file %s' % (os.path.join(checkpoint_path, args['checkpoint_file'] + '.pth.tar')))
     checkpoint_dict = torch.load(os.path.join(checkpoint_path, args['checkpoint_file'] + '.pth.tar'),
