@@ -90,7 +90,7 @@ args = {'generative_model': generative_model,
         'reference_mesh_file': reference_mesh_file, 'downsample_directory': downsample_directory,
         'checkpoint_file': 'checkpoint',
         'seed': 2, 'loss': 'l1',
-        'batch_size': 16, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
+        'batch_size': 16, 'num_epochs': 50, 'eval_frequency': 200, 'num_workers': 0,
         'filter_sizes_enc': filter_sizes_enc, 'filter_sizes_dec': filter_sizes_dec,
         'nz': opt.nz,
         'ds_factors': ds_factors, 'step_sizes': step_sizes, 'dilation': dilation,
@@ -342,7 +342,7 @@ if args['mode'] == 'train':
         jobj = json.load(open('result.json'))
         jobj[amount] = l2_loss
         jobj['pca' + str(amount)] = test_pca()
-        json.dump(open('result.json', 'w'), jobj)
+        json.dump(jobj, open('result.json', 'w'))
 
 if args['mode'] == 'test':
     print('loading checkpoint from file %s' % (os.path.join(checkpoint_path, args['checkpoint_file'] + '.pth.tar')))
