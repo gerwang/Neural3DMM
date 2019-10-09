@@ -1,6 +1,6 @@
 import sys
 
-template = sys.executable + ' neural3DMM.py --nz 50 --name paper_arch --dataset FW_true_10000 --amount {} > /dev/null ' \
+template = sys.executable + ' neural3DMM.py --nz 50 --name paper_arch --dataset FW_linear_10000 --amount {} > /dev/null ' \
                             '2>&1 & '
 
 with open('tasks.txt', 'w') as fout:
