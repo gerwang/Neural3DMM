@@ -41,8 +41,8 @@ def test_autoencoder_dataloader(device, model, dataloader_test, shapedata, mm_co
         tx_dict = model(tx)
         prediction = tx_dict['rec']
         prediction = torch.cat([
-            get_optim_points(model, prediction[i], tx[i], loss_l1, tx_dict['mu'][i])[0].unsqueeze(0)
-        ], dim=0)
+            get_optim_points(model, prediction[j], tx[j], loss_l1, tx_dict['mu'][j])[0].unsqueeze(0)
+            for j in range(tx.shape[0])], dim=0)
         if i == 0:
             predictions = copy.deepcopy(prediction)
         else:
