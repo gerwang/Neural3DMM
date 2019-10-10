@@ -40,6 +40,7 @@ parser.add_argument('--resume', action='store_true')
 parser.add_argument('--test', action='store_true')
 parser.add_argument('--on_train', action='store_true', help='test on train dataset')
 parser.add_argument('--amount', type=int, default=-1, help='-1 means use all, number of training data to use')
+parser.add_argument('--n_inter', type=int)
 
 opt = parser.parse_args()
 
@@ -102,7 +103,7 @@ args = {'generative_model': generative_model,
 
         'mode': 'test' if opt.test else 'train', 'shuffle': True, 'nVal': 100, 'normalization': True,
         'save_mesh': False, 'on_train': opt.on_train, 'amount': opt.amount,
-        'n_inter': 256}
+        'n_inter': opt.n_inter}
 
 args['results_folder'] = os.path.join(args['results_folder'], 'latent_' + str(args['nz']))
 
@@ -299,8 +300,9 @@ else:
 '''
 
 optim = torch.optim.Adam([
-    {'params': model.en_fc1.parameters() + model.de_fc2.parameters(), 'lr': args['lr'] * args['pca_lr_factor']},
-    {'params': model.en_fc2.parameters() + model.de_fc1.parameters()}
+    {'params': list(model.en_fc1.parameters()) + list(model.de_fc2.parameters()),
+     'lr': args['lr'] * args['pca_lr_factor']},
+    {'params': list(model.en_fc2.parameters()) + list(model.de_fc1.parameters())}
 ], lr=args['lr'], weight_decay=args['regularization'])
 
 if args['scheduler']:

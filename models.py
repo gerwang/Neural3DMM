@@ -171,8 +171,10 @@ class MLPAE(nn.Module):
         return x
 
     def forward(self, x):
+        x = x.reshape(x.shape[0], -1)
         x = self.encode(x)
         x = self.decode(x)
+        x = x.reshape(x.shape[0], -1, 3)
         return x
 
 
@@ -200,7 +202,6 @@ class MLPVAE(nn.Module):
         self.activation = nn.ELU()
 
     def encode(self, x):
-        x = x.reshape(-1)
         x = self.en_fc1(x)
         x = self.activation(x)
         mu = self.en_mu(x)
@@ -211,7 +212,6 @@ class MLPVAE(nn.Module):
         x = self.de_fc1(x)
         x = self.activation(x)
         x = self.de_fc2(x)
-        x = x.reshape(-1, 3)
         return x
 
     def forward(self, x):
