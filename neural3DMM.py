@@ -7,6 +7,7 @@ import sys
 
 import numpy as np
 from easydl.common.gpuutils import select_GPUs
+from sklearn.decomposition import PCA
 
 try:
     from psbody.mesh import Mesh
@@ -21,7 +22,7 @@ from autoencoder_dataset import DeviceDataset
 from torch.utils.data import DataLoader
 
 from spiral_utils import get_adj_trigs, generate_spirals
-from models import SpiralAutoencoder
+from models import MLPAE
 from train_funcs import train_autoencoder_dataloader
 from test_funcs import test_autoencoder_dataloader
 
@@ -38,6 +39,7 @@ parser.add_argument('--dataset', help='dataset name')
 parser.add_argument('--resume', action='store_true')
 parser.add_argument('--test', action='store_true')
 parser.add_argument('--on_train', action='store_true', help='test on train dataset')
+parser.add_argument('--amount', type=int, default=-1, help='-1 means use all, number of training data to use')
 
 opt = parser.parse_args()
 
@@ -88,18 +90,19 @@ args = {'generative_model': generative_model,
         'reference_mesh_file': reference_mesh_file, 'downsample_directory': downsample_directory,
         'checkpoint_file': 'checkpoint',
         'seed': 2, 'loss': 'l1',
-        'batch_size': 16, 'num_epochs': 300, 'eval_frequency': 200, 'num_workers': 0,
+        'batch_size': 16, 'num_epochs': 50, 'eval_frequency': 200, 'num_workers': 0,
         'filter_sizes_enc': filter_sizes_enc, 'filter_sizes_dec': filter_sizes_dec,
         'nz': opt.nz,
         'ds_factors': ds_factors, 'step_sizes': step_sizes, 'dilation': dilation,
 
         'lr': 1e-3,
         'regularization': 5e-5,
-        'scheduler': True, 'decay_rate': 0.99, 'decay_steps': 1,
+        'scheduler': True, 'decay_rate': 0.99, 'decay_steps': 1, 'pca_lr_factor': 0.1,
         'resume': opt.resume,
 
         'mode': 'test' if opt.test else 'train', 'shuffle': True, 'nVal': 100, 'normalization': True,
-        'save_mesh': False, 'on_train': opt.on_train}
+        'save_mesh': False, 'on_train': opt.on_train, 'amount': opt.amount,
+        'n_inter': 256}
 
 args['results_folder'] = os.path.join(args['results_folder'], 'latent_' + str(args['nz']))
 
@@ -240,17 +243,52 @@ tU = [torch.from_numpy(s).float().to(device) for s in bU]
 
 # Building model, optimizer, and loss function
 
-dataset_train = DeviceDataset(np_data=shapedata.vertices_train, shapedata=shapedata, device=device)
+amount = args['amount']
+if amount == -1:
+    amount = shapedata.vertices_train.shape[0]
+num_epochs = args['num_epochs']
+# scale epoch
+reference_amount = 10000
+num_epochs = num_epochs * reference_amount // amount
+decay_freq = reference_amount // args['batch_size']
+print('actual num_epoches', num_epochs)
+
+dataset_train = DeviceDataset(np_data=shapedata.vertices_train[:amount], shapedata=shapedata, device=device,
+                              dummy_node=False)
 
 dataloader_train = DataLoader(dataset_train, batch_size=args['batch_size'], \
                               shuffle=args['shuffle'], num_workers=args['num_workers'])
 
-dataset_test = DeviceDataset(np_data=shapedata.vertices_test, shapedata=shapedata, device=device)
+dataset_test = DeviceDataset(np_data=shapedata.vertices_test, shapedata=shapedata, device=device, dummy_node=False)
 
 dataloader_test = DataLoader(dataset_test, batch_size=args['batch_size'], \
                              shuffle=False, num_workers=args['num_workers'])
 
+
+def test_pca():
+    mm_constant = 100
+    pca = PCA(n_components=args['nz'])
+    train_data = shapedata.vertices_train[:amount]  # n x 11510 x 3
+    test_data = shapedata.vertices_test
+    pca.fit(train_data.reshape(train_data.shape[0], -1))
+    test_recon = pca.inverse_transform(pca.transform(test_data.reshape(test_data.shape[0], -1))).reshape(
+        test_data.shape[0], -1, 3)
+    ori_err = np.mean(np.sqrt(np.sum(((test_recon - test_data) * shapedata.std) ** 2, axis=2)))
+    return ori_err * mm_constant
+
+
 if 'autoencoder' in args['generative_model']:
+    model = MLPAE(shapedata.n_vertex * shapedata.n_features, args['n_inter'], args['nz'])
+    pca = PCA(n_components=args['n_inter'])
+    train_data = shapedata.vertices_train[:amount]  # n x 11510 x 3
+    pca.fit(train_data.reshape(train_data.shape[0], -1))
+    model.en_fc1.weight.data = torch.as_tensor(pca.components_)
+    model.en_fc1.bias.data = torch.as_tensor(-pca.components_ @ shapedata.mean.flatten())
+    model.de_fc2.weight.data = torch.as_tensor(pca.components_.T)
+    model.de_fc2.bias.data = torch.as_tensor(shapedata.mean.flatten())
+    model = model.to(device)
+'''
+else:
     model = SpiralAutoencoder(filters_enc=args['filter_sizes_enc'],
                               filters_dec=args['filter_sizes_dec'],
                               latent_size=args['nz'],
@@ -258,8 +296,13 @@ if 'autoencoder' in args['generative_model']:
                               spiral_sizes=spiral_sizes,
                               spirals=tspirals,
                               D=tD, U=tU, device=device).to(device)
+'''
 
-optim = torch.optim.Adam(model.parameters(), lr=args['lr'], weight_decay=args['regularization'])
+optim = torch.optim.Adam([
+    {'params': model.en_fc1.parameters() + model.de_fc2.parameters(), 'lr': args['lr'] * args['pca_lr_factor']},
+    {'params': model.en_fc2.parameters() + model.de_fc1.parameters()}
+], lr=args['lr'], weight_decay=args['regularization'])
+
 if args['scheduler']:
     scheduler = torch.optim.lr_scheduler.StepLR(optim, args['decay_steps'], gamma=args['decay_rate'])
 else:
@@ -301,7 +344,7 @@ if args['mode'] == 'train':
                                      device, model, optim, loss_fn,
                                      bsize=args['batch_size'],
                                      start_epoch=start_epoch,
-                                     n_epochs=args['num_epochs'],
+                                     n_epochs=num_epochs,
                                      eval_freq=args['eval_frequency'],
                                      scheduler=scheduler,
                                      writer=writer,
