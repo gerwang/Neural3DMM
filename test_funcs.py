@@ -22,7 +22,7 @@ def get_optim_points(model, current, target, loss_fn, z, n_iter=1000):
         optim.step()
     for p in params:
         p.requires_grad_(True)
-    return current, z
+    return current.detach(), z
 
 
 def loss_l1(outputs, targets):
@@ -36,34 +36,33 @@ def test_autoencoder_dataloader(device, model, dataloader_test, shapedata, mm_co
     l2_loss = 0
     shapedata_mean = torch.Tensor(shapedata.mean).to(device)
     shapedata_std = torch.Tensor(shapedata.std).to(device)
-    with torch.no_grad():
-        for i, sample_dict in enumerate(tqdm(dataloader_test)):
-            tx = sample_dict['points'].to(device)
-            tx_dict = model(tx)
-            prediction = tx_dict['rec']
-            prediction = torch.cat([
-                get_optim_points(model, prediction[i], tx[i], loss_l1, tx_dict['mu'][i])[0].unsqueeze(0)
-            ], dim=0)
-            if i == 0:
-                predictions = copy.deepcopy(prediction)
-            else:
-                predictions = torch.cat([predictions, prediction], 0)
+    for i, sample_dict in enumerate(tqdm(dataloader_test)):
+        tx = sample_dict['points'].to(device)
+        tx_dict = model(tx)
+        prediction = tx_dict['rec']
+        prediction = torch.cat([
+            get_optim_points(model, prediction[i], tx[i], loss_l1, tx_dict['mu'][i])[0].unsqueeze(0)
+        ], dim=0)
+        if i == 0:
+            predictions = copy.deepcopy(prediction)
+        else:
+            predictions = torch.cat([predictions, prediction], 0)
 
-            if dataloader_test.dataset.dummy_node:
-                x_recon = prediction[:, :-1]
-                x = tx[:, :-1]
-            else:
-                x_recon = prediction
-                x = tx
-            l1_loss += torch.mean(torch.abs(x_recon - x)) * x.shape[0] / float(len(dataloader_test.dataset))
+        if dataloader_test.dataset.dummy_node:
+            x_recon = prediction[:, :-1]
+            x = tx[:, :-1]
+        else:
+            x_recon = prediction
+            x = tx
+        l1_loss += torch.mean(torch.abs(x_recon - x)) * x.shape[0] / float(len(dataloader_test.dataset))
 
-            x_recon = (x_recon * shapedata_std + shapedata_mean) * mm_constant
-            x = (x * shapedata_std + shapedata_mean) * mm_constant
-            l2_loss += torch.mean(torch.sqrt(torch.sum((x_recon - x) ** 2, dim=2))) * x.shape[0] / float(
-                len(dataloader_test.dataset))
+        x_recon = (x_recon * shapedata_std + shapedata_mean) * mm_constant
+        x = (x * shapedata_std + shapedata_mean) * mm_constant
+        l2_loss += torch.mean(torch.sqrt(torch.sum((x_recon - x) ** 2, dim=2))) * x.shape[0] / float(
+            len(dataloader_test.dataset))
 
-        predictions = predictions.cpu().numpy()
-        l1_loss = l1_loss.item()
-        l2_loss = l2_loss.item()
+    predictions = predictions.cpu().numpy()
+    l1_loss = l1_loss.item()
+    l2_loss = l2_loss.item()
 
     return predictions, l1_loss, l2_loss
