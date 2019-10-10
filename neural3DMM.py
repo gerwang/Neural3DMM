@@ -2,7 +2,6 @@ import copy
 import getpass
 import json
 import os
-import pickle
 import sys
 
 import numpy as np
@@ -14,14 +13,11 @@ try:
 except:
     print('no psbody.mesh')
 
-import mesh_sampling
-import trimesh
 from shape_data import ShapeData
 
 from autoencoder_dataset import DeviceDataset
 from torch.utils.data import DataLoader
 
-from spiral_utils import get_adj_trigs, generate_spirals
 from models import MLPAE
 from train_funcs import train_autoencoder_dataloader
 from test_funcs import test_autoencoder_dataloader
@@ -29,7 +25,6 @@ from test_funcs import test_autoencoder_dataloader
 import torch
 from tensorboardX import SummaryWriter
 
-from sklearn.metrics.pairwise import euclidean_distances
 import argparse
 
 parser = argparse.ArgumentParser()
@@ -86,7 +81,7 @@ else:
 reference_points = [[5930]]  # [[3567, 4051, 4597]]  # used for COMA with 3 disconnected components# [[414]]
 
 args = {'generative_model': generative_model,
-        'name': name, 'data': os.path.join(root_dir, dataset, 'preprocessed', name),
+        'name': name, 'data': os.path.join(root_dir, dataset, 'preprocessed', 'paper_arch'),
         'results_folder': os.path.join(root_dir, dataset, 'results/spirals_' + generative_model),
         'reference_mesh_file': reference_mesh_file, 'downsample_directory': downsample_directory,
         'checkpoint_file': 'checkpoint',
@@ -162,6 +157,7 @@ else:
     shapedata.mean = np.load(args['data'] + '/mean.npy')
     shapedata.std = np.load(args['data'] + '/std.npy')
 
+'''
 if not os.path.exists(os.path.join(args['downsample_directory'], 'downsampling_matrices.pkl')):
     if shapedata.meshpackage == 'trimesh':
         raise NotImplementedError('Rerun with mpi-mesh as meshpackage')
@@ -195,7 +191,9 @@ else:
     D = downsampling_matrices['D']
     U = downsampling_matrices['U']
     F = downsampling_matrices['F']
+'''
 
+'''
 # Needs also an extra check to enforce points to belong to different disconnected component at each hierarchy level
 print("Calculating reference points for downsampled versions..")
 for i in range(len(args['ds_factors'])):
@@ -229,6 +227,7 @@ for i in range(len(D)):
     u[0, -1, -1] = 1
     bD.append(d)
     bU.append(u)
+'''
 
 torch.manual_seed(args['seed'])
 
@@ -238,9 +237,11 @@ else:
     device = torch.device("cpu")
 print(device)
 
+'''
 tspirals = [torch.from_numpy(s).long().to(device) for s in spirals_np]
 tD = [torch.from_numpy(s).float().to(device) for s in bD]
 tU = [torch.from_numpy(s).float().to(device) for s in bU]
+'''
 
 # Building model, optimizer, and loss function
 
@@ -354,6 +355,16 @@ if args['mode'] == 'train':
                                      shapedata=shapedata,
                                      metadata_dir=checkpoint_path, samples_dir=samples_path,
                                      checkpoint_path=args['checkpoint_file'])
+
+        predictions, norm_l1_loss, l2_loss = test_autoencoder_dataloader(device, model, dataloader_test,
+                                                                         shapedata, mm_constant=100)
+
+        jobj = json.load(open('result.json'))
+        jobj[args['n_inter']] = l2_loss
+        if 'pca' not in jobj:
+            jobj['pca'] = test_pca()
+        json.dump(jobj, open('result.json', 'w'))
+
 if args['mode'] == 'test':
     print('loading checkpoint from file %s' % (os.path.join(checkpoint_path, args['checkpoint_file'] + '.pth.tar')))
     checkpoint_dict = torch.load(os.path.join(checkpoint_path, args['checkpoint_file'] + '.pth.tar'),
