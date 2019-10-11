@@ -299,21 +299,24 @@ if args['mode'] == 'train':
         start_epoch = 0
 
     if args['generative_model'] == 'autoencoder':
-        final_vloss = train_autoencoder_dataloader(dataloader_train, dataloader_test,
-                                                   device, model, optim, loss_fn,
-                                                   bsize=args['batch_size'],
-                                                   start_epoch=start_epoch,
-                                                   n_epochs=args['num_epochs'],
-                                                   eval_freq=args['eval_frequency'],
-                                                   lambda_var=args['lambda_var'],
-                                                   scheduler=scheduler,
-                                                   writer=writer,
-                                                   save_recons=True,
-                                                   shapedata=shapedata,
-                                                   metadata_dir=checkpoint_path, samples_dir=samples_path,
-                                                   checkpoint_path=args['checkpoint_file'])
+        train_autoencoder_dataloader(dataloader_train, dataloader_test,
+                                     device, model, optim, loss_fn,
+                                     bsize=args['batch_size'],
+                                     start_epoch=start_epoch,
+                                     n_epochs=args['num_epochs'],
+                                     eval_freq=args['eval_frequency'],
+                                     lambda_var=args['lambda_var'],
+                                     scheduler=scheduler,
+                                     writer=writer,
+                                     save_recons=True,
+                                     shapedata=shapedata,
+                                     metadata_dir=checkpoint_path, samples_dir=samples_path,
+                                     checkpoint_path=args['checkpoint_file'])
+
+        predictions, norm_l1_loss, l2_loss = test_autoencoder_dataloader(device, model, dataloader_test,
+                                                                         shapedata, mm_constant=100)
         jobj = json.load(open('result.json'))
-        jobj[args['lambda_var']] = final_vloss
+        jobj[args['lambda_var']] = l2_loss
         json.dump(jobj, open('result.json', 'w'))
 if args['mode'] == 'test':
     print('loading checkpoint from file %s' % (os.path.join(checkpoint_path, args['checkpoint_file'] + '.pth.tar')))
