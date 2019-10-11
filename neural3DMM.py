@@ -71,7 +71,7 @@ downsample_method = 'COMA_downsample'.format(name)  # choose'COMA_downsample' or
 
 # below are the arguments for the DFAUST run
 reference_mesh_file = os.path.join(root_dir, dataset, 'template', 'template.obj')
-downsample_directory = os.path.join(root_dir, dataset, 'template', downsample_method, name)
+downsample_directory = os.path.join(root_dir, dataset, 'template', downsample_method, 'paper_arch')
 ds_factors = [4, 4, 4, 4, 4]
 step_sizes = [1, 1, 1, 1, 1, 1]
 filter_sizes_enc = [[3, 8, 16, 32, 64, 128], [[], [], [], [], [], []]]
@@ -84,7 +84,7 @@ else:
 reference_points = [[5930]]  # [[3567, 4051, 4597]]  # used for COMA with 3 disconnected components# [[414]]
 
 args = {'generative_model': generative_model,
-        'name': name, 'data': os.path.join(root_dir, dataset, 'preprocessed', name),
+        'name': name, 'data': os.path.join(root_dir, dataset, 'preprocessed', 'paper_arch'),
         'results_folder': os.path.join(root_dir, dataset, 'results/spirals_' + generative_model),
         'reference_mesh_file': reference_mesh_file, 'downsample_directory': downsample_directory,
         'checkpoint_file': 'checkpoint',
