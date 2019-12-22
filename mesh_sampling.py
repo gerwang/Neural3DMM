@@ -1,12 +1,14 @@
 
 ### Code obtained and modified from https://github.com/anuragranj/coma, Copyright (c) 2018 Anurag Ranjan, Timo Bolkart, Soubhik Sanyal, Michael J. Black and the Max Planck Gesellschaft
 
-import math
 import heapq
-import numpy as np
+import math
 import os
+
+import numpy as np
 import scipy.sparse as sp
 from scipy import spatial
+
 try:
     import psbody.mesh
     found = True
